@@ -16,7 +16,16 @@ class Applier
     /** @return list<string> */
     public function apply(Finding $finding, bool $allowRebuild): array
     {
-        foreach ($finding->statements as $statement) {
+        return $this->run($finding->statements, $allowRebuild);
+    }
+
+    /**
+     * @param  list<Statement> $statements
+     * @return list<string>
+     */
+    public function run(array $statements, bool $allowRebuild): array
+    {
+        foreach ($statements as $statement) {
             if (!$statement->online && !$allowRebuild) {
                 throw new RebuildRefused($statement);
             }
@@ -24,7 +33,7 @@ class Applier
 
         $executed = [];
 
-        foreach ($finding->statements as $statement) {
+        foreach ($statements as $statement) {
             $this->connection->statement($statement->sql);
             $executed[] = $statement->sql;
         }

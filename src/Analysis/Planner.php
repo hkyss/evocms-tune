@@ -39,7 +39,7 @@ class Planner
                 continue;
             }
 
-            $findings[] = new Finding($rule, Status::Pending, $builder->forRule($rule));
+            $findings[] = $this->evaluate($rule, $builder);
         }
 
         return new Plan($findings);
@@ -48,7 +48,7 @@ class Planner
     private function evaluate(Rule $rule, StatementBuilder $builder): Finding
     {
         if (!$this->reader->hasTable($rule->table)) {
-            return new Finding($rule, Status::Absent, [], 'table not present in this installation');
+            return new Finding($rule, Status::Absent, detail: 'table not present in this installation');
         }
 
         return match ($rule->action) {
@@ -63,10 +63,10 @@ class Planner
         $covering = $this->reader->coveringIndex($rule->table, $rule->columns);
 
         if ($covering !== null) {
-            return new Finding($rule, Status::Satisfied, [], sprintf('covered by %s', $covering->name));
+            return new Finding($rule, Status::Satisfied, detail: sprintf('covered by %s', $covering->name));
         }
 
-        return new Finding($rule, Status::Pending, $builder->forRule($rule));
+        return new Finding($rule, Status::Pending, $builder->forRule($rule), $builder->undoOfAddition($rule, null));
     }
 
     private function evaluateAddUnique(Rule $rule, StatementBuilder $builder): Finding
@@ -78,28 +78,40 @@ class Planner
         $duplicates = $this->reader->duplicateGroups($rule->table, $rule->columns);
 
         if ($duplicates > 0) {
-            return new Finding($rule, Status::Blocked, [], sprintf(
+            return new Finding($rule, Status::Blocked, detail: sprintf(
                 '%d duplicate group(s) on (%s) — resolve the data before the constraint',
                 $duplicates,
                 implode(', ', $rule->columns)
             ));
         }
 
-        $stillThere = $rule->replaces !== null && $this->reader->indexNamed($rule->table, $rule->replaces) !== null;
-        $effective = $stillThere
+        $replaced = $rule->replaces !== null ? $this->reader->indexNamed($rule->table, $rule->replaces) : null;
+        $effective = $replaced !== null
             ? $rule
             : new Rule($rule->id, $rule->table, $rule->action, $rule->index, $rule->columns, $rule->tier, $rule->reason);
 
-        return new Finding($rule, Status::Pending, $builder->forRule($effective));
+        return new Finding(
+            $rule,
+            Status::Pending,
+            $builder->forRule($effective),
+            $builder->undoOfAddition($rule, $replaced)
+        );
     }
 
     private function evaluateDropIndex(Rule $rule, StatementBuilder $builder): Finding
     {
-        if ($this->reader->indexNamed($rule->table, $rule->index) === null) {
-            return new Finding($rule, Status::Satisfied, [], 'index not present');
+        $present = $this->reader->indexNamed($rule->table, $rule->index);
+
+        if ($present === null) {
+            return new Finding($rule, Status::Satisfied, detail: 'index not present');
         }
 
-        return new Finding($rule, Status::Pending, $builder->forRule($rule));
+        return new Finding(
+            $rule,
+            Status::Pending,
+            $builder->forRule($rule),
+            $builder->undoOfDrop($rule->table, $present)
+        );
     }
 
     /**

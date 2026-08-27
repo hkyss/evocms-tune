@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-use hkyss\Tune\Analysis\Finding;
+use hkyss\Tune\Analysis\Planner;
 use hkyss\Tune\Apply\Applier;
+use hkyss\Tune\Record\Journal;
 use hkyss\Tune\Rules\Tier;
 use hkyss\Tune\Schema\SchemaReader;
 use Illuminate\Database\Capsule\Manager as Capsule;
@@ -24,10 +25,34 @@ $capsule->addConnection([
 
 $connection = $capsule->getConnection();
 $reader = new SchemaReader($connection);
-$planner = new hkyss\Tune\Analysis\Planner($reader);
+$planner = new Planner($reader);
+$applier = new Applier($connection);
+$journal = new Journal($connection);
 
-$plan = $planner->plan(Tier::Aggressive);
-$pending = $plan->pending();
+/** @return array<string, array<string, string>> */
+$inventory = static function (SchemaReader $reader): array {
+    $inventory = [];
+
+    foreach ($reader->all() as $table => $indexes) {
+        foreach ($indexes as $index) {
+            $inventory[$table][$index->name] = sprintf(
+                '%s|%s|%s',
+                $index->signature(),
+                $index->unique ? 'unique' : 'plain',
+                $index->type
+            );
+        }
+
+        ksort($inventory[$table]);
+    }
+
+    ksort($inventory);
+
+    return $inventory;
+};
+
+$before = $inventory($reader);
+$pending = $planner->plan(Tier::Aggressive)->pending();
 
 printf("%d change(s) planned against the baseline schema.\n", count($pending));
 
@@ -37,33 +62,76 @@ if ($pending === []) {
     exit(1);
 }
 
-$applier = new Applier($connection);
-
 foreach ($pending as $finding) {
-    foreach ($applier->apply($finding, true) as $sql) {
-        printf("  %s;\n", $sql);
-    }
+    $journal->record($finding->rule, $applier->apply($finding, true), $finding->undo);
 }
 
 $reader->forget();
-$second = $planner->plan(Tier::Aggressive);
 
-if (!$second->isClean()) {
+if (!$planner->plan(Tier::Aggressive)->isClean()) {
     fwrite(STDERR, "Applying the plan did not settle it:\n");
 
-    foreach ($second->pending() as $finding) {
+    foreach ($planner->plan(Tier::Aggressive)->pending() as $finding) {
         fwrite(STDERR, sprintf("  %s %s\n", $finding->rule->table, $finding->rule->describe()));
     }
 
     exit(1);
 }
 
-$blocked = array_map(static fn (Finding $finding): string => $finding->rule->id, $second->blocked());
+printf("Applied, and a second pass finds nothing left to do. %d change(s) on record.\n", $journal->count());
 
-if ($blocked !== []) {
-    fwrite(STDERR, sprintf("Blocked after applying: %s\n", implode(', ', $blocked)));
+foreach ($journal->entries() as $change) {
+    $applier->run($change->undo, true);
+    $journal->forget($change->id);
+}
+
+$journal->discard();
+$reader->forget();
+$after = $inventory($reader);
+
+if ($before !== $after) {
+    fwrite(STDERR, "db:untune did not put the schema back:\n");
+
+    foreach ($before as $table => $indexes) {
+        foreach ($indexes as $name => $definition) {
+            if (($after[$table][$name] ?? null) !== $definition) {
+                fwrite(STDERR, sprintf("  lost %s.%s (%s)\n", $table, $name, $definition));
+            }
+        }
+    }
+
+    foreach ($after as $table => $indexes) {
+        foreach ($indexes as $name => $definition) {
+            if (($before[$table][$name] ?? null) !== $definition) {
+                fwrite(STDERR, sprintf("  left %s.%s (%s)\n", $table, $name, $definition));
+            }
+        }
+    }
 
     exit(1);
 }
 
-echo "Applied, and a second pass finds nothing left to do.\n";
+$again = count($planner->plan(Tier::Aggressive)->pending());
+
+if ($again !== count($pending)) {
+    fwrite(STDERR, sprintf("The schema is back but the plan is not: %d change(s), expected %d.\n", $again, count($pending)));
+
+    exit(1);
+}
+
+printf("Undone, and the schema is identical to the baseline — %d change(s) planned again.\n", $again);
+
+foreach (['event_log' => 'createdon', 'manager_log' => 'timestamp'] as $table => $column) {
+    $connection->table($table)->insert([$column => 1]);
+    $removed = $connection->table($table)->where($column, '<', 2)->delete();
+
+    if ($removed !== 1) {
+        fwrite(STDERR, sprintf("The prune path did not reach %s.\n", $reader->qualify($table)));
+
+        exit(1);
+    }
+}
+
+echo "The prune path reaches its tables through the connection prefix.\n";
+
+unset($inventory, $before, $after, $again, $index, $removed);

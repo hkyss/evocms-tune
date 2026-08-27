@@ -60,11 +60,10 @@ class PruneCommand extends DatabaseCommand
 
     private function prune(string $table, string $column, int $days, int $batch): int
     {
-        $qualified = $this->reader()->qualify($table);
         $cutoff = time() - ($days * 86400);
         $connection = $this->connection();
 
-        $total = (int) $connection->table($qualified)->where($column, '<', $cutoff)->count();
+        $total = (int) $connection->table($table)->where($column, '<', $cutoff)->count();
 
         $this->line(sprintf('  %-14s older than %3d day(s): <comment>%d</comment>', $table, $days, $total));
 
@@ -75,7 +74,7 @@ class PruneCommand extends DatabaseCommand
         $removed = 0;
 
         do {
-            $deleted = $connection->table($qualified)->where($column, '<', $cutoff)->limit($batch)->delete();
+            $deleted = $connection->table($table)->where($column, '<', $cutoff)->limit($batch)->delete();
             $removed += $deleted;
         } while ($deleted > 0);
 

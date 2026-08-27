@@ -7,6 +7,7 @@ namespace hkyss\Tune;
 use hkyss\Tune\Console\Commands\DoctorCommand;
 use hkyss\Tune\Console\Commands\PruneCommand;
 use hkyss\Tune\Console\Commands\TuneCommand;
+use hkyss\Tune\Console\Commands\UntuneCommand;
 use Illuminate\Support\ServiceProvider;
 
 class TuneServiceProvider extends ServiceProvider
@@ -26,6 +27,7 @@ class TuneServiceProvider extends ServiceProvider
             $this->commands([
                 DoctorCommand::class,
                 TuneCommand::class,
+                UntuneCommand::class,
                 PruneCommand::class,
             ]);
         }

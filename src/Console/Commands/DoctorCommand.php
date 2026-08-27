@@ -9,6 +9,7 @@ use hkyss\Tune\Analysis\Plan;
 use hkyss\Tune\Analysis\Status;
 use hkyss\Tune\Apply\Statement;
 use hkyss\Tune\Console\DatabaseCommand;
+use hkyss\Tune\Record\Journal;
 use hkyss\Tune\Rules\Tier;
 
 class DoctorCommand extends DatabaseCommand
@@ -76,6 +77,7 @@ class DoctorCommand extends DatabaseCommand
 
         if ($pending === 0 && $blocked === 0) {
             $this->info('Nothing to do — the schema already carries every index this ruleset asks for.');
+            $this->reportJournal();
 
             return;
         }
@@ -100,6 +102,20 @@ class DoctorCommand extends DatabaseCommand
 
         $this->newLine();
         $this->line('Apply them with <comment>php artisan db:tune --dry-run</comment> first.');
+        $this->reportJournal();
+    }
+
+    private function reportJournal(): void
+    {
+        $journal = new Journal($this->connection());
+        $recorded = $journal->count();
+
+        if ($recorded > 0) {
+            $this->line(sprintf(
+                '%d change(s) already recorded — <comment>php artisan db:untune</comment> puts them back.',
+                $recorded
+            ));
+        }
     }
 
     private function marker(Finding $finding): string

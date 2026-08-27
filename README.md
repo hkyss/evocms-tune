@@ -13,6 +13,7 @@ nothing, and applies the difference.
 php artisan db:doctor
 php artisan db:tune --dry-run
 php artisan db:tune
+php artisan db:untune
 ```
 
 On a stock CE 3.1 install it finds thirty changes: nineteen that pay off on any site, nine that
@@ -46,7 +47,8 @@ php artisan package:installrequire hkyss/evocms-tune "^1.0"
 php artisan db:doctor
 ```
 
-No migrations. The package changes nothing until you run `db:tune`.
+No migrations. The package changes nothing until you run `db:tune`, which creates one table of
+its own — a record of what it changed, so `db:untune` can put it back.
 
 ## Tiers
 
@@ -70,6 +72,26 @@ php artisan db:tune --only=site_content_closure
 php artisan db:doctor --only=tmplvar_contentvalues.pair
 ```
 
+## Undoing
+
+`db:tune` writes down every change before it applies it, together with the statement that
+reverses it, in a `tune_changes` table it creates on first use. `db:untune` replays those newest
+first:
+
+```bash
+php artisan db:untune --dry-run
+php artisan db:untune --only=site_content
+php artisan db:untune
+```
+
+An index the package added is dropped again. An index it removed is recreated *exactly* as the
+schema had it — same columns, same prefix lengths, same uniqueness, fulltext included — because
+the definition was read out of `information_schema` before the drop rather than guessed
+afterwards. Putting a fulltext index back rebuilds the table, so it needs `--allow-rebuild` the
+same way removing it did.
+
+When the last record is undone the table goes with it, and the package leaves nothing behind.
+
 ## What it will not do
 
 **Apply anything you have not seen.** `db:doctor` reports, `db:tune --dry-run` prints every
@@ -82,6 +104,10 @@ online — those statements are marked, held back, and need `--allow-rebuild`.
 **Assume what Evolution shipped.** Every rule is checked against the live schema first. An index
 that already exists, or one a wider index already covers, is reported as satisfied and skipped.
 A unique constraint is blocked, with a count, while the data still has duplicates.
+
+**Change what it cannot put back.** Every pending change carries its own undo statement,
+computed from the live schema at the moment it is planned. `db:doctor --json` prints those next
+to the statements that would be applied.
 
 **Guess at redundancy.** Beyond the curated rules the package derives its own: any index whose
 columns are the leading part of another index on the same table answers no query the wider one

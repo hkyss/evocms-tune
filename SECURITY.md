@@ -16,13 +16,23 @@ It runs `ALTER TABLE` against your database with the credentials Evolution is co
 Nothing is sandboxed and nothing is transactional — MySQL commits DDL implicitly, so a batch that
 fails halfway leaves the earlier statements applied.
 
-Additive changes are safe to interrupt. Drops are not reversible without rebuilding the index,
-which is why `db:tune` prints every statement first and asks before it runs them, and why
-`--dry-run` exists.
+Additive changes are safe to interrupt. Drops are reversible only because `db:tune` reads the
+index definition out of `information_schema` and records the statement that recreates it before
+removing it — that record is the whole basis for `db:untune`. Losing the `tune_changes` table
+loses the ability to put a dropped index back. `db:tune` still prints every statement first and
+asks before running them, and `--dry-run` exists, because a record is not a substitute for
+looking.
 
 Statements are emitted with `ALGORITHM=INPLACE, LOCK=NONE` and fail rather than silently falling
 back to a blocking rebuild. The one exception is dropping the last fulltext index on a table,
 which cannot be done any other way; those are held back until `--allow-rebuild`.
+
+## The record table
+
+`db:tune` creates `tune_changes` on first use and drops it once `db:untune` has nothing left on
+record. It holds SQL statements and timestamps — no rows from your site, no credentials — and it
+is written with the same connection everything else uses. Back it up with the rest of the
+database; it is what makes a drop reversible.
 
 ## Identifiers
 

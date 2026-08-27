@@ -11,14 +11,13 @@ Two rules follow from that, and they bound every change made here:
 1. **Read before write.** Nothing is applied without inspecting the live schema. A rule that
    assumes what Evolution shipped is a rule that breaks on the first site whose schema was
    touched by an import or an extra.
-2. **Reversible where it can be.** An addition has a statement that undoes it —
-   `StatementBuilder::reverseOf()` builds it, and the tests hold it to that. A drop does not,
-   because the columns are gone. That asymmetry is why drops sit behind a tier and a
-   confirmation instead of alongside the additions.
+2. **Reversible.** Every change carries the statement that undoes it, built at plan time from
+   the live schema — which is the only moment the definition of an index about to be dropped can
+   still be read. `db:tune` records that statement before it applies anything, and `db:untune`
+   replays it.
 
-`reverseOf()` is not wired to a command yet, so the second rule is a property of the builder
-rather than something an operator can reach. Anything that widens the drop rules should close
-that gap first.
+A rule whose undo cannot be built from the schema does not belong in the ruleset. If you find
+yourself wanting to hard-code what an index *probably* looked like, that is the signal.
 
 ## Running the checks
 
@@ -42,10 +41,15 @@ has, and assert on the plan.
 
 ## The end-to-end check
 
-`tests/Schema/plan.php` loads a real schema, applies the whole plan at the aggressive tier, and
-then plans again. The second pass has to come back empty: that proves the statements are valid
-SQL on a real server *and* that `db:doctor` converges instead of proposing the same change
-forever.
+`tests/Schema/plan.php` loads a real schema, applies the whole plan at the aggressive tier, plans
+again, then undoes everything from the journal and compares the index inventory to the one it
+started with.
+
+Four things have to hold. The second pass comes back empty, which proves the statements are valid
+SQL on a real server and that `db:doctor` converges instead of proposing the same change forever.
+The inventory after `db:untune` is identical to the baseline, down to prefix lengths and fulltext
+indexes. The plan is the same size again. And the prune tables still resolve through the
+connection prefix — a double-prefixed table name is the mistake this catches.
 
 Run it against any MySQL you can throw away:
 

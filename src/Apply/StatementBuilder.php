@@ -6,6 +6,7 @@ namespace hkyss\Tune\Apply;
 
 use hkyss\Tune\Rules\Action;
 use hkyss\Tune\Rules\Rule;
+use hkyss\Tune\Schema\Index;
 
 final class StatementBuilder
 {
@@ -18,49 +19,66 @@ final class StatementBuilder
     /** @return list<Statement> */
     public function forRule(Rule $rule): array
     {
-        $table = $this->prefix . $rule->table;
-        $online = $this->supportsOnlineChanges && !$rule->rebuild;
         $clauses = [];
 
         if ($rule->action === Action::AddUnique && $rule->replaces !== null) {
-            $clauses[] = sprintf('DROP INDEX %s', $this->quote($rule->replaces));
+            $clauses[] = $this->dropClause($rule->replaces);
         }
 
         $clauses[] = match ($rule->action) {
-            Action::AddIndex => sprintf('ADD INDEX %s (%s)', $this->quote($rule->index), $this->columnList($rule->columns)),
-            Action::AddUnique => sprintf('ADD UNIQUE INDEX %s (%s)', $this->quote($rule->index), $this->columnList($rule->columns)),
-            Action::DropIndex => sprintf('DROP INDEX %s', $this->quote($rule->index)),
+            Action::AddIndex => $this->addClause($rule->index, $rule->columns, false, Index::BTREE),
+            Action::AddUnique => $this->addClause($rule->index, $rule->columns, true, Index::BTREE),
+            Action::DropIndex => $this->dropClause($rule->index),
         };
 
-        $sql = sprintf('ALTER TABLE %s %s', $this->quote($table), implode(', ', $clauses));
-
-        if ($online) {
-            $sql .= ', ALGORITHM=INPLACE, LOCK=NONE';
-        }
-
-        return [new Statement($sql, $online, $table)];
+        return [$this->alter($rule->table, $clauses, !$rule->rebuild)];
     }
 
     /** @return list<Statement> */
-    public function reverseOf(Rule $rule): array
+    public function undoOfAddition(Rule $rule, ?Index $restored): array
     {
-        $table = $this->prefix . $rule->table;
+        $clauses = [$this->dropClause($rule->index)];
 
-        if ($rule->action === Action::DropIndex) {
-            return [];
+        if ($restored !== null) {
+            $clauses[] = $this->addClause($restored->name, $restored->columns, $restored->unique, $restored->type);
         }
 
-        $clauses = [sprintf('DROP INDEX %s', $this->quote($rule->index))];
+        return [$this->alter($rule->table, $clauses, $restored?->type !== Index::FULLTEXT)];
+    }
 
-        if ($rule->replaces !== null) {
-            $clauses[] = sprintf('ADD INDEX %s (%s)', $this->quote($rule->replaces), $this->columnList($rule->columns));
-        }
+    /** @return list<Statement> */
+    public function undoOfDrop(string $table, Index $dropped): array
+    {
+        $clause = $this->addClause($dropped->name, $dropped->columns, $dropped->unique, $dropped->type);
 
-        return [new Statement(
-            sprintf('ALTER TABLE %s %s', $this->quote($table), implode(', ', $clauses)),
-            $this->supportsOnlineChanges,
-            $table
-        )];
+        return [$this->alter($table, [$clause], $dropped->type !== Index::FULLTEXT)];
+    }
+
+    /** @param list<string> $clauses */
+    private function alter(string $table, array $clauses, bool $online): Statement
+    {
+        $qualified = $this->prefix . $table;
+        $online = $online && $this->supportsOnlineChanges;
+        $sql = sprintf('ALTER TABLE %s %s', $this->quote($qualified), implode(', ', $clauses));
+
+        return new Statement($online ? $sql . ', ALGORITHM=INPLACE, LOCK=NONE' : $sql, $online, $qualified);
+    }
+
+    /** @param list<string> $columns */
+    private function addClause(string $name, array $columns, bool $unique, string $type): string
+    {
+        $kind = match (true) {
+            $type === Index::FULLTEXT => 'FULLTEXT INDEX',
+            $unique => 'UNIQUE INDEX',
+            default => 'INDEX',
+        };
+
+        return sprintf('ADD %s %s (%s)', $kind, $this->quote($name), $this->columnList($columns));
+    }
+
+    private function dropClause(string $name): string
+    {
+        return sprintf('DROP INDEX %s', $this->quote($name));
     }
 
     /** @param list<string> $columns */

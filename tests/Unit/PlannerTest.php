@@ -102,6 +102,39 @@ class PlannerTest extends TestCase
         $this->assertStringContainsString('`evo_site_content_closure`', $finding->statements[0]->sql);
     }
 
+    public function testEveryPendingChangeCarriesTheStatementThatUndoesIt(): void
+    {
+        foreach ($this->planFor($this->stockSchema(), [], Tier::Aggressive)->pending() as $finding) {
+            $this->assertNotSame([], $finding->undo, $finding->rule->id);
+        }
+    }
+
+    public function testTheUndoOfADerivedDropRestoresTheIndexTheSchemaActuallyHad(): void
+    {
+        $plan = $this->planFor($this->stockSchema());
+
+        $finding = $this->find($plan, 'redundant.site_content.aliasidx');
+
+        $this->assertStringContainsString('DROP INDEX `aliasidx`', $finding->statements[0]->sql);
+        $this->assertStringContainsString('ADD INDEX `aliasidx` (`alias`)', $finding->undo[0]->sql);
+    }
+
+    public function testTheUndoOfTheUniqueConversionPutsTheOriginalIndexBack(): void
+    {
+        $finding = $this->find($this->planFor($this->stockSchema()), 'tmplvar_contentvalues.pair');
+
+        $this->assertStringContainsString('DROP INDEX `tune_tvcv_pair`', $finding->undo[0]->sql);
+        $this->assertStringContainsString('ADD INDEX `idx_tmplvarid_contentid`', $finding->undo[0]->sql);
+    }
+
+    public function testTheUndoOfDroppingAFulltextIndexIsNotOnline(): void
+    {
+        $finding = $this->find($this->planFor($this->stockSchema(), [], Tier::Aggressive), 'site_content.fulltext');
+
+        $this->assertStringContainsString('ADD FULLTEXT INDEX `content_ft_idx`', $finding->undo[0]->sql);
+        $this->assertFalse($finding->undo[0]->online);
+    }
+
     /**
      * @param array<string, list<Index>> $schema
      * @param array<string, int>         $duplicates

@@ -8,6 +8,7 @@ use hkyss\Tune\Analysis\Finding;
 use hkyss\Tune\Apply\Applier;
 use hkyss\Tune\Apply\RebuildRefused;
 use hkyss\Tune\Console\DatabaseCommand;
+use hkyss\Tune\Record\Journal;
 use Throwable;
 
 class TuneCommand extends DatabaseCommand
@@ -72,12 +73,13 @@ class TuneCommand extends DatabaseCommand
     private function applyAll(array $pending): int
     {
         $applier = new Applier($this->connection());
+        $journal = new Journal($this->connection());
         $applied = 0;
         $failed = 0;
 
         foreach ($pending as $finding) {
             try {
-                $applier->apply($finding, (bool) $this->option('allow-rebuild'));
+                $journal->record($finding->rule, $applier->apply($finding, (bool) $this->option('allow-rebuild')), $finding->undo);
                 $this->line(sprintf('  <fg=green>done</> %s.%s', $finding->rule->table, $finding->rule->describe()));
                 $applied++;
             } catch (RebuildRefused) {
@@ -94,6 +96,7 @@ class TuneCommand extends DatabaseCommand
         if ($applied > 0) {
             $this->reader()->forget();
             $this->line('Run <comment>php artisan db:doctor</comment> to confirm, and ANALYZE TABLE on anything large.');
+            $this->line(sprintf('Recorded in %s; <comment>php artisan db:untune</comment> puts it back.', $journal->table()));
         }
 
         return $failed > 0 ? self::FAILURE : self::SUCCESS;

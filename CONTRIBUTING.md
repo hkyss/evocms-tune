@@ -1,5 +1,25 @@
 # Contributing
 
+## What this package may do
+
+Change the schema of an Evolution CMS installation that someone else owns. Every statement it
+emits is one a DBA would have to defend, so the package states the reason, says whether the
+operation blocks writes, and never runs anything the operator has not seen first.
+
+Two rules follow from that, and they bound every change made here:
+
+1. **Read before write.** Nothing is applied without inspecting the live schema. A rule that
+   assumes what Evolution shipped is a rule that breaks on the first site whose schema was
+   touched by an import or an extra.
+2. **Reversible where it can be.** An addition has a statement that undoes it —
+   `StatementBuilder::reverseOf()` builds it, and the tests hold it to that. A drop does not,
+   because the columns are gone. That asymmetry is why drops sit behind a tier and a
+   confirmation instead of alongside the additions.
+
+`reverseOf()` is not wired to a command yet, so the second rule is a property of the builder
+rather than something an operator can reach. Anything that widens the drop rules should close
+that gap first.
+
 ## Running the checks
 
 ```bash

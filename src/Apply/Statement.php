@@ -10,6 +10,7 @@ final class Statement
         public readonly string $sql,
         public readonly bool $online,
         public readonly string $table,
+        public readonly ?Guard $guard = null,
     ) {
     }
 }

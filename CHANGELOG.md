@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- `db:untune` reads a record the schema has moved past as stale rather than failing on it.
+  Every undo statement now carries the index it expects to find, or to still be missing, and a
+  record whose index has been renamed or removed by something else is reported and dropped
+  instead of failing this run and every run after it. The market package renames the unique on
+  `site_tmplvar_contentvalues`, which is how this surfaced.
+
 ## [1.0.0] - 2026-08-27
 
 ### Added

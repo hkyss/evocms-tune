@@ -126,4 +126,32 @@ class StatementBuilderTest extends TestCase
             $statements[0]->sql
         );
     }
+
+    public function testAnUndoKnowsWhichIndexHasToStillBeThereForItToApply(): void
+    {
+        $rule = Rule::addUnique('x', 'tv', 'tune_pair', ['tmplvarid', 'contentid'], Tier::Core, 'because', 'old_pair');
+
+        $guard = (new StatementBuilder('evo_'))->undoOfAddition($rule, new Index('old_pair', ['tmplvarid', 'contentid'], false))[0]->guard;
+
+        $this->assertNotNull($guard);
+        $this->assertSame('tv', $guard->table);
+        $this->assertSame('tune_pair', $guard->index);
+        $this->assertTrue($guard->present);
+    }
+
+    public function testAnUndoThatRecreatesAnIndexAppliesOnlyWhileItIsMissing(): void
+    {
+        $guard = (new StatementBuilder('evo_'))->undoOfDrop('site_content', new Index('aliasidx', ['alias'], false))[0]->guard;
+
+        $this->assertNotNull($guard);
+        $this->assertSame('aliasidx', $guard->index);
+        $this->assertFalse($guard->present);
+    }
+
+    public function testTheStatementsThatApplyAChangeCarryNoGuard(): void
+    {
+        $rule = Rule::addIndex('x', 'site_content', 'i', ['parent'], Tier::Core, 'because');
+
+        $this->assertNull((new StatementBuilder('evo_'))->forRule($rule)[0]->guard);
+    }
 }

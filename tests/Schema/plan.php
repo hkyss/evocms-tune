@@ -121,6 +121,62 @@ if ($again !== count($pending)) {
 
 printf("Undone, and the schema is identical to the baseline — %d change(s) planned again.\n", $again);
 
+// What market does to the same table: it finds the unique on (tmplvarid, contentid) by its
+// columns rather than by its name, and renames it. A record whose undo drops an index that is
+// not there any more can never be replayed, so db:untune has to read it as stale rather than
+// fail on it at every run from here on.
+$pair = $planner->plan(Tier::Core, ['tmplvar_contentvalues.pair'])->pending();
+
+if (count($pair) !== 1) {
+    fwrite(STDERR, sprintf("Expected one pending change for the unique pair, got %d.\n", count($pair)));
+
+    exit(1);
+}
+
+$values = $reader->qualify('site_tmplvar_contentvalues');
+$journal->record($pair[0]->rule, $applier->apply($pair[0], true), $pair[0]->undo);
+$connection->statement(sprintf(
+    'ALTER TABLE `%s` DROP INDEX `tune_tvcv_pair`, ADD UNIQUE INDEX `ix_tvid_contentid` (`tmplvarid`, `contentid`)',
+    $values
+));
+$reader->forget();
+
+$recorded = $journal->entries();
+$guards = array_values(array_filter(array_map(static fn ($change) => $change->undo[0]->guard ?? null, $recorded)));
+
+if ($guards === []) {
+    fwrite(STDERR, "The record carries no guard, so nothing can tell it has gone stale.\n");
+
+    exit(1);
+}
+
+foreach ($guards as $guard) {
+    if ($guard->holds($reader)) {
+        fwrite(STDERR, sprintf("A renamed index still reads as replayable: %s\n", $guard->explain()));
+
+        exit(1);
+    }
+}
+
+printf("A record the schema has moved past reads as stale: %s.\n", $guards[0]->explain());
+
+foreach ($recorded as $change) {
+    $journal->forget($change->id);
+}
+
+$journal->discard();
+$connection->statement(sprintf(
+    'ALTER TABLE `%s` DROP INDEX `ix_tvid_contentid`, ADD INDEX `idx_tmplvarid_contentid` (`tmplvarid`, `contentid`)',
+    $values
+));
+$reader->forget();
+
+if ($inventory($reader) !== $before) {
+    fwrite(STDERR, "The stale-record check did not leave the schema as it found it.\n");
+
+    exit(1);
+}
+
 foreach (['event_log' => 'createdon', 'manager_log' => 'timestamp'] as $table => $column) {
     $connection->table($table)->insert([$column => 1]);
     $removed = $connection->table($table)->where($column, '<', 2)->delete();
@@ -134,4 +190,4 @@ foreach (['event_log' => 'createdon', 'manager_log' => 'timestamp'] as $table =>
 
 echo "The prune path reaches its tables through the connection prefix.\n";
 
-unset($inventory, $before, $after, $again, $index, $removed);
+unset($inventory, $before, $after, $again, $index, $removed, $pair, $values, $recorded, $guards, $guard, $change);

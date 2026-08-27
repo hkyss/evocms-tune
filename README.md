@@ -90,6 +90,12 @@ the definition was read out of `information_schema` before the drop rather than 
 afterwards. Putting a fulltext index back rebuilds the table, so it needs `--allow-rebuild` the
 same way removing it did.
 
+A record only applies while the schema is still where `db:tune` left it. Each undo statement
+carries the index it expects to find — or to still be missing — and `db:untune` checks that
+before it runs anything. Where something else has moved on since, the record is read as stale
+and dropped rather than failing this run and every run after it; a renamed index can never be
+put back by a statement that names the old one.
+
 When the last record is undone the table goes with it, and the package leaves nothing behind.
 
 ## What it will not do

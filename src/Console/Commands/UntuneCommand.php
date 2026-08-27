@@ -43,7 +43,18 @@ class UntuneCommand extends DatabaseCommand
             return self::SUCCESS;
         }
 
+        $stale = 0;
+
         foreach ($changes as $change) {
+            $moved = $this->movedOn($change);
+
+            if ($moved !== null) {
+                $this->line(sprintf('  <fg=gray>stale</>  %s — %s', $change->ruleId, $moved));
+                $stale++;
+
+                continue;
+            }
+
             foreach ($change->undo as $statement) {
                 $this->line(sprintf('  %s %s;', $statement->online ? '<fg=green>online</>' : '<fg=red>blocks</>', $statement->sql));
             }
@@ -52,7 +63,11 @@ class UntuneCommand extends DatabaseCommand
         $this->newLine();
 
         if ($this->option('dry-run')) {
-            $this->comment(sprintf('%d change(s) — dry run, nothing was undone.', count($changes)));
+            $this->comment(sprintf(
+                '%d change(s), %d of them stale — dry run, nothing was undone.',
+                count($changes),
+                $stale
+            ));
 
             return self::SUCCESS;
         }
@@ -72,20 +87,36 @@ class UntuneCommand extends DatabaseCommand
             return self::SUCCESS;
         }
 
-        return $this->undo($changes, $journal);
+        return $this->replay($changes, $journal);
     }
 
     /** @param list<Change> $changes */
-    private function undo(array $changes, Journal $journal): int
+    private function replay(array $changes, Journal $journal): int
     {
         $applier = new Applier($this->connection());
         $undone = 0;
+        $stale = 0;
         $failed = 0;
 
         foreach ($changes as $change) {
+            $moved = $this->movedOn($change);
+
+            // Something else has moved the schema on since db:tune touched it — market
+            // renames the unique on site_tmplvar_contentvalues, for one. The record cannot
+            // be replayed and will never become replayable, so it goes rather than failing
+            // this run and every run after it.
+            if ($moved !== null) {
+                $journal->forget($change->id);
+                $this->line(sprintf('  <fg=gray>stale</>  %s — %s, record dropped', $change->ruleId, $moved));
+                $stale++;
+
+                continue;
+            }
+
             try {
                 $applier->run($change->undo, (bool) $this->option('allow-rebuild'));
                 $journal->forget($change->id);
+                $this->reader()->forget();
                 $this->line(sprintf('  <fg=green>undone</> %s', $change->ruleId));
                 $undone++;
             } catch (RebuildRefused) {
@@ -97,7 +128,7 @@ class UntuneCommand extends DatabaseCommand
         }
 
         $this->newLine();
-        $this->line(sprintf('<options=bold>%d undone, %d failed.</>', $undone, $failed));
+        $this->line(sprintf('<options=bold>%d undone, %d stale, %d failed.</>', $undone, $stale, $failed));
 
         if ($journal->count() === 0) {
             $journal->discard();
@@ -105,6 +136,17 @@ class UntuneCommand extends DatabaseCommand
         }
 
         return $failed > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    private function movedOn(Change $change): ?string
+    {
+        foreach ($change->undo as $statement) {
+            if ($statement->guard !== null && !$statement->guard->holds($this->reader())) {
+                return $statement->guard->explain();
+            }
+        }
+
+        return null;
     }
 
     private function journal(): Journal

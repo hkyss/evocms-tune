@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace hkyss\Tune\Record;
 
+use hkyss\Tune\Apply\Guard;
 use hkyss\Tune\Apply\Statement;
 use hkyss\Tune\Rules\Rule;
 use Illuminate\Database\Connection;
@@ -69,7 +70,11 @@ class Journal
             'table_name' => $rule->table,
             'applied_sql' => implode(";\n", $applied),
             'undo_sql' => (string) json_encode(array_map(
-                static fn (Statement $statement): array => ['sql' => $statement->sql, 'online' => $statement->online],
+                static fn (Statement $statement): array => [
+                    'sql' => $statement->sql,
+                    'online' => $statement->online,
+                    'guard' => $statement->guard?->toArray(),
+                ],
                 $undo
             )),
             'applied_at' => time(),
@@ -123,7 +128,14 @@ class Journal
 
         foreach (is_array($decoded) ? $decoded : [] as $statement) {
             if (is_array($statement) && isset($statement['sql'])) {
-                $undo[] = new Statement((string) $statement['sql'], (bool) ($statement['online'] ?? true), (string) ($row['table_name'] ?? ''));
+                $guard = $statement['guard'] ?? null;
+
+                $undo[] = new Statement(
+                    (string) $statement['sql'],
+                    (bool) ($statement['online'] ?? true),
+                    (string) ($row['table_name'] ?? ''),
+                    is_array($guard) ? Guard::fromArray($guard) : null
+                );
             }
         }
 

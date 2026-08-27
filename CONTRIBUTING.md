@@ -14,7 +14,9 @@ Two rules follow from that, and they bound every change made here:
 2. **Reversible.** Every change carries the statement that undoes it, built at plan time from
    the live schema — which is the only moment the definition of an index about to be dropped can
    still be read. `db:tune` records that statement before it applies anything, and `db:untune`
-   replays it.
+   replays it, but only while the schema is still where it was left. Each undo carries a guard:
+   the index it expects to be there, or to still be gone. A record whose guard no longer holds
+   is dropped rather than retried — it can never become replayable.
 
 A rule whose undo cannot be built from the schema does not belong in the ruleset. If you find
 yourself wanting to hard-code what an index *probably* looked like, that is the signal.

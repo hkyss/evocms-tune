@@ -43,7 +43,12 @@ final class StatementBuilder
             $clauses[] = $this->addClause($restored->name, $restored->columns, $restored->unique, $restored->type);
         }
 
-        return [$this->alter($rule->table, $clauses, $restored?->type !== Index::FULLTEXT)];
+        return [$this->alter(
+            $rule->table,
+            $clauses,
+            $restored?->type !== Index::FULLTEXT,
+            new Guard($rule->table, $rule->index, true)
+        )];
     }
 
     /** @return list<Statement> */
@@ -51,17 +56,17 @@ final class StatementBuilder
     {
         $clause = $this->addClause($dropped->name, $dropped->columns, $dropped->unique, $dropped->type);
 
-        return [$this->alter($table, [$clause], $dropped->type !== Index::FULLTEXT)];
+        return [$this->alter($table, [$clause], $dropped->type !== Index::FULLTEXT, new Guard($table, $dropped->name, false))];
     }
 
     /** @param list<string> $clauses */
-    private function alter(string $table, array $clauses, bool $online): Statement
+    private function alter(string $table, array $clauses, bool $online, ?Guard $guard = null): Statement
     {
         $qualified = $this->prefix . $table;
         $online = $online && $this->supportsOnlineChanges;
         $sql = sprintf('ALTER TABLE %s %s', $this->quote($qualified), implode(', ', $clauses));
 
-        return new Statement($online ? $sql . ', ALGORITHM=INPLACE, LOCK=NONE' : $sql, $online, $qualified);
+        return new Statement($online ? $sql . ', ALGORITHM=INPLACE, LOCK=NONE' : $sql, $online, $qualified, $guard);
     }
 
     /** @param list<string> $columns */

@@ -73,7 +73,7 @@ class TuneCommand extends DatabaseCommand
     private function applyAll(array $pending): int
     {
         $applier = new Applier($this->connection());
-        $journal = new Journal($this->connection());
+        $journal = new Journal($this->connection(), $this->reader());
         $applied = 0;
         $failed = 0;
 

@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-27
+
+### Added
+
+- Rules for the tables the first ruleset walked past. `active_users`, whose who-is-online list
+  is swept by `lasthit` and whose primary key starts at the session id. `site_plugin_events`,
+  `user_role_vars`, `site_module_access` and `site_module_depobj`, each carrying nothing but a
+  primary key that leads with the column nobody asks by. And the name lookups on the six
+  element tables, which the site cache answers at runtime and nothing answers while it is
+  being rebuilt.
+- `db:doctor` reports columns that cannot point at what they point at: `site_content.parent` is
+  a signed `int` against an `int unsigned` `id`, and it is not alone. It reports and stops
+  there — a column type is changed by rewriting the table, which is not what this package does,
+  and the mismatch is why the schema can carry no foreign keys.
+
+### Fixed
+
+- The record table is created with the collation the rest of the schema uses rather than the
+  database default, and one created before this is converted in place. A table this package
+  leaves behind should read like the schema around it.
+
 ## [1.1.0] - 2026-08-27
 
 ### Changed

@@ -7,6 +7,7 @@ namespace hkyss\Tune\Record;
 use hkyss\Tune\Apply\Guard;
 use hkyss\Tune\Apply\Statement;
 use hkyss\Tune\Rules\Rule;
+use hkyss\Tune\Schema\SchemaReader;
 use Illuminate\Database\Connection;
 
 class Journal
@@ -15,8 +16,10 @@ class Journal
 
     private bool $ensured = false;
 
-    public function __construct(private readonly Connection $connection)
-    {
+    public function __construct(
+        private readonly Connection $connection,
+        private readonly SchemaReader $reader,
+    ) {
     }
 
     public function table(): string
@@ -41,6 +44,8 @@ class Journal
             return;
         }
 
+        $collation = $this->reader->prevailingCollation();
+
         $this->connection->statement(sprintf(
             'CREATE TABLE IF NOT EXISTS `%s` ('
             . '`id` int unsigned NOT NULL AUTO_INCREMENT,'
@@ -50,10 +55,12 @@ class Journal
             . '`undo_sql` text NOT NULL,'
             . '`applied_at` int unsigned NOT NULL,'
             . 'PRIMARY KEY (`id`)'
-            . ') ENGINE=InnoDB',
-            $this->table()
+            . ') ENGINE=InnoDB%s',
+            $this->table(),
+            $collation !== null ? sprintf(' COLLATE=%s', $collation) : ''
         ));
 
+        $this->align($collation);
         $this->ensured = true;
     }
 
@@ -118,6 +125,28 @@ class Journal
     {
         $this->connection->statement(sprintf('DROP TABLE IF EXISTS `%s`', $this->table()));
         $this->ensured = false;
+    }
+
+    // A table this package leaves behind should read like the schema around it, and a record
+    // written before that was true is small enough to convert in place.
+    private function align(?string $collation): void
+    {
+        if ($collation === null) {
+            return;
+        }
+
+        $current = $this->reader->collationOf(self::TABLE);
+
+        if ($current === null || $current === $collation) {
+            return;
+        }
+
+        $this->connection->statement(sprintf(
+            'ALTER TABLE `%s` CONVERT TO CHARACTER SET %s COLLATE %s',
+            $this->table(),
+            strtok($collation, '_'),
+            $collation
+        ));
     }
 
     /** @param array<string, mixed> $row */

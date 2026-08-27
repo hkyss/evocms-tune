@@ -115,6 +115,11 @@ A unique constraint is blocked, with a count, while the data still has duplicate
 computed from the live schema at the moment it is planned. `db:doctor --json` prints those next
 to the statements that would be applied.
 
+**Change a column type.** `site_content.parent` is a signed `int` pointing at an `int unsigned`
+`id`, and it is not the only one — which is why the schema carries no foreign keys at all.
+`db:doctor` lists those under *Not ours to change* and stops there, because a column type is
+changed by rewriting the table.
+
 **Guess at redundancy.** Beyond the curated rules the package derives its own: any index whose
 columns are the leading part of another index on the same table answers no query the wider one
 cannot. That analysis runs against the schema *as it will be after* the additions, which is how

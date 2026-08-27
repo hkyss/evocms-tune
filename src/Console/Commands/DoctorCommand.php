@@ -7,6 +7,8 @@ namespace hkyss\Tune\Console\Commands;
 use hkyss\Tune\Analysis\Finding;
 use hkyss\Tune\Analysis\Plan;
 use hkyss\Tune\Analysis\Status;
+use hkyss\Tune\Analysis\TypeMismatch;
+use hkyss\Tune\Analysis\TypeReport;
 use hkyss\Tune\Apply\Statement;
 use hkyss\Tune\Console\DatabaseCommand;
 use hkyss\Tune\Record\Journal;
@@ -68,6 +70,30 @@ class DoctorCommand extends DatabaseCommand
         }
 
         $this->summarise($plan);
+        $this->reportTypes();
+    }
+
+    private function reportTypes(): void
+    {
+        $mismatches = (new TypeReport())->against($this->reader());
+
+        if ($mismatches === []) {
+            return;
+        }
+
+        $this->newLine();
+        $this->line('<options=bold>Not ours to change</>');
+
+        foreach ($mismatches as $mismatch) {
+            $this->line(sprintf('  <fg=gray>%s</>', $mismatch->describe()));
+        }
+
+        $this->newLine();
+        $this->line(sprintf('    <fg=gray>%s</>', $this->wrap(
+            'A column type is changed by rewriting the table, which is not what this package does. '
+            . 'It is also why the schema carries no foreign keys: MySQL will not have one across '
+            . 'a signed and an unsigned column.'
+        )));
     }
 
     private function summarise(Plan $plan): void
@@ -107,7 +133,7 @@ class DoctorCommand extends DatabaseCommand
 
     private function reportJournal(): void
     {
-        $journal = new Journal($this->connection());
+        $journal = new Journal($this->connection(), $this->reader());
         $recorded = $journal->count();
 
         if ($recorded > 0) {
@@ -146,6 +172,13 @@ class DoctorCommand extends DatabaseCommand
                 'rebuild' => $f->requiresRebuild(),
                 'sql' => array_map(static fn (Statement $s): string => $s->sql, $f->statements),
             ], $plan->findings),
+            'types' => array_map(static fn (TypeMismatch $m): array => [
+                'table' => $m->table,
+                'column' => $m->column,
+                'type' => $m->type,
+                'references' => $m->target,
+                'references_type' => $m->targetType,
+            ], (new TypeReport())->against($this->reader())),
         ];
     }
 

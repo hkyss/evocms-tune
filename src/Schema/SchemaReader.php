@@ -11,6 +11,9 @@ class SchemaReader
     /** @var array<string, list<Index>>|null */
     private ?array $indexes = null;
 
+    /** @var array<string, array<string, string>>|null */
+    private ?array $columns = null;
+
     public function __construct(private readonly Connection $connection)
     {
     }
@@ -104,9 +107,66 @@ class SchemaReader
         return is_object($row) ? (int) ($row->rows_total ?? 0) : 0;
     }
 
+    public function columnType(string $table, string $column): ?string
+    {
+        return $this->allColumns()[$table][$column] ?? null;
+    }
+
+    /** @return array<string, array<string, string>> */
+    public function allColumns(): array
+    {
+        if ($this->columns !== null) {
+            return $this->columns;
+        }
+
+        $prefix = $this->prefix();
+        $this->columns = [];
+
+        $rows = $this->connection->select(
+            'SELECT TABLE_NAME AS `table_name`, COLUMN_NAME AS `column_name`, COLUMN_TYPE AS `column_type`'
+            . ' FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()'
+        );
+
+        foreach ($rows as $row) {
+            $table = (string) $row->table_name;
+
+            if ($prefix !== '' && !str_starts_with($table, $prefix)) {
+                continue;
+            }
+
+            $key = $prefix !== '' ? substr($table, strlen($prefix)) : $table;
+            $this->columns[$key][(string) $row->column_name] = (string) $row->column_type;
+        }
+
+        return $this->columns;
+    }
+
+    public function prevailingCollation(): ?string
+    {
+        $row = $this->connection->selectOne(
+            'SELECT TABLE_COLLATION AS `found`, COUNT(*) AS `tables` FROM information_schema.TABLES'
+            . ' WHERE TABLE_SCHEMA = DATABASE() AND TABLE_COLLATION IS NOT NULL'
+            . ' GROUP BY TABLE_COLLATION ORDER BY `tables` DESC, `found` ASC LIMIT 1'
+        );
+
+        return is_object($row) && is_string($row->found ?? null) ? $row->found : null;
+    }
+
+    public function collationOf(string $table): ?string
+    {
+        $row = $this->connection->selectOne(
+            'SELECT TABLE_COLLATION AS `found` FROM information_schema.TABLES'
+            . ' WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            [$this->qualify($table)]
+        );
+
+        return is_object($row) && is_string($row->found ?? null) ? $row->found : null;
+    }
+
     public function forget(): void
     {
         $this->indexes = null;
+        $this->columns = null;
     }
 
     /** @return array<string, list<Index>> */

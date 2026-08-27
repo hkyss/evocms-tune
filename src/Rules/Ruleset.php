@@ -9,7 +9,14 @@ final class Ruleset
     /** @return list<Rule> */
     public static function evolutionCore(): array
     {
-        return array_merge(self::tree(), self::elements(), self::access(), self::content(), self::logs());
+        return array_merge(
+            self::tree(),
+            self::elements(),
+            self::elementNames(),
+            self::access(),
+            self::content(),
+            self::logs()
+        );
     }
 
     /** @return list<Rule> */
@@ -98,6 +105,35 @@ final class Ruleset
     }
 
     /** @return list<Rule> */
+    private static function elementNames(): array
+    {
+        $reason = 'Elements are found by name. The site cache answers that at runtime, so what an '
+            . 'index here pays for is rebuilding the cache and the lists in the manager.';
+
+        $rules = [];
+
+        foreach ([
+            'snippets' => ['site_snippets', 'name'],
+            'chunks' => ['site_htmlsnippets', 'name'],
+            'plugins' => ['site_plugins', 'name'],
+            'modules' => ['site_modules', 'name'],
+            'templates' => ['site_templates', 'templatename'],
+            'tmplvars' => ['site_tmplvars', 'name'],
+        ] as $key => [$table, $column]) {
+            $rules[] = Rule::addIndex(
+                sprintf('%s.name', $key),
+                $table,
+                sprintf('tune_%s_name', $key),
+                [$column],
+                Tier::Extended,
+                $reason
+            );
+        }
+
+        return $rules;
+    }
+
+    /** @return list<Rule> */
     private static function access(): array
     {
         return [
@@ -151,6 +187,59 @@ final class Ruleset
                 ['internalKey'],
                 Tier::Extended,
                 'Finding a user\'s own session, which the manager does once per login.'
+            ),
+            Rule::addIndex(
+                'active_users.lasthit',
+                'active_users',
+                'tune_au_lasthit',
+                ['lasthit'],
+                Tier::Core,
+                'The who-is-online list is swept by lasthit and read again on every manager page, '
+                . 'and the primary key starts at the session id, so neither can use it.'
+            ),
+            Rule::addIndex(
+                'active_users.internalkey',
+                'active_users',
+                'tune_au_internalkey',
+                ['internalKey'],
+                Tier::Extended,
+                'Same table from the other side: finding the row belonging to one user means a '
+                . 'scan, because the primary key leads with the session id.'
+            ),
+            Rule::addIndex(
+                'plugin_events.event',
+                'site_plugin_events',
+                'tune_spe_event',
+                ['evtid', 'pluginid'],
+                Tier::Extended,
+                'Which plugins answer an event is asked with the event in hand, and the primary '
+                . 'key starts at the plugin. The map is cached, so this pays for rebuilding it.'
+            ),
+            Rule::addIndex(
+                'user_role_vars.role',
+                'user_role_vars',
+                'tune_urv_role',
+                ['roleid', 'rank'],
+                Tier::Extended,
+                'The same shape as the template side of template variables: the primary key leads '
+                . 'with the variable, and the question asked is which ones a role may see.'
+            ),
+            Rule::addIndex(
+                'module_access.module',
+                'site_module_access',
+                'tune_sma_module',
+                ['module', 'usergroup'],
+                Tier::Extended,
+                'The module permission check reads by module, and this table carries nothing but '
+                . 'its primary key.'
+            ),
+            Rule::addIndex(
+                'module_depobj.module',
+                'site_module_depobj',
+                'tune_smd_module',
+                ['module', 'resource'],
+                Tier::Extended,
+                'Module dependencies are read by module, and this table carries nothing either.'
             ),
             Rule::addIndex(
                 'user_attributes.email',

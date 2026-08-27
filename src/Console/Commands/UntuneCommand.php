@@ -151,6 +151,6 @@ class UntuneCommand extends DatabaseCommand
 
     private function journal(): Journal
     {
-        return new Journal($this->connection());
+        return new Journal($this->connection(), $this->reader());
     }
 }

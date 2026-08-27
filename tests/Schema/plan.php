@@ -27,7 +27,7 @@ $connection = $capsule->getConnection();
 $reader = new SchemaReader($connection);
 $planner = new Planner($reader);
 $applier = new Applier($connection);
-$journal = new Journal($connection);
+$journal = new Journal($connection, $reader);
 
 /** @return array<string, array<string, string>> */
 $inventory = static function (SchemaReader $reader): array {
@@ -140,6 +140,17 @@ $connection->statement(sprintf(
     $values
 ));
 $reader->forget();
+
+$prevailing = $reader->prevailingCollation();
+$mine = $reader->collationOf(Journal::TABLE);
+
+if ($prevailing !== null && $mine !== $prevailing) {
+    fwrite(STDERR, sprintf("The record table is %s where the schema around it is %s.\n", (string) $mine, $prevailing));
+
+    exit(1);
+}
+
+printf("The record table reads like the schema around it: %s.\n", (string) $mine);
 
 $recorded = $journal->entries();
 $guards = array_values(array_filter(array_map(static fn ($change) => $change->undo[0]->guard ?? null, $recorded)));

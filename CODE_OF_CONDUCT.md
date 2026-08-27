@@ -19,7 +19,7 @@ including when you are representing the project elsewhere.
 ## Enforcement
 
 Report a problem through GitHub's private vulnerability reporting on
-[this repository](https://github.com/hkyss/evocms-extras/security) — it is the private channel this
+[this repository](https://github.com/hkyss/evocms-tune/security) — it is the private channel this
 project has. Reports stay between you and the maintainer.
 
 Responses run from a private word, through editing or removing the content, to blocking the

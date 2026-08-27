@@ -101,9 +101,9 @@ class UntuneCommand extends DatabaseCommand
         foreach ($changes as $change) {
             $moved = $this->movedOn($change);
 
-            // Something else has moved the schema on since db:tune touched it — market
-            // renames the unique on site_tmplvar_contentvalues, for one. The record cannot
-            // be replayed and will never become replayable, so it goes rather than failing
+            // The schema has moved on since db:tune touched it: another migration, or a
+            // hand at a console, renamed or dropped what this record names. It cannot be
+            // replayed and will never become replayable, so it goes rather than failing
             // this run and every run after it.
             if ($moved !== null) {
                 $journal->forget($change->id);

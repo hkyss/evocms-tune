@@ -121,10 +121,10 @@ if ($again !== count($pending)) {
 
 printf("Undone, and the schema is identical to the baseline — %d change(s) planned again.\n", $again);
 
-// What market does to the same table: it finds the unique on (tmplvarid, contentid) by its
-// columns rather than by its name, and renames it. A record whose undo drops an index that is
-// not there any more can never be replayed, so db:untune has to read it as stale rather than
-// fail on it at every run from here on.
+// An index this package created, renamed by something else — which is what any migration
+// that looks an index up by its columns rather than by its name will do. A record whose undo
+// drops an index that is not there any more can never be replayed, so db:untune has to read
+// it as stale rather than fail on it at every run from here on.
 $pair = $planner->plan(Tier::Core, ['tmplvar_contentvalues.pair'])->pending();
 
 if (count($pair) !== 1) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use hkyss\Tune\Analysis\Planner;
 use hkyss\Tune\Apply\Applier;
+use hkyss\Tune\Apply\Statistics;
 use hkyss\Tune\Record\Journal;
 use hkyss\Tune\Rules\Tier;
 use hkyss\Tune\Schema\SchemaReader;
@@ -65,6 +66,18 @@ if ($pending === []) {
 foreach ($pending as $finding) {
     $journal->record($finding->rule, $applier->apply($finding, true), $finding->undo);
 }
+
+$refreshed = (new Statistics($connection))->refreshFor(array_merge(
+    ...array_map(static fn ($finding): array => $finding->statements, $pending)
+));
+
+if ($refreshed < 1) {
+    fwrite(STDERR, "A batch of index changes left the optimizer on the statistics it had.\n");
+
+    exit(1);
+}
+
+printf("Statistics read again on %d table(s).\n", $refreshed);
 
 $reader->forget();
 

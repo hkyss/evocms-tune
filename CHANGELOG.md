@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-08-27
+
+### Changed
+
+- `db:tune` and `db:untune` read the statistics again on every table they changed, in one
+  `ANALYZE TABLE`, instead of advising it. An index the optimizer has no statistics for is one
+  it may decline to use, so a change without them is applied but not necessarily in effect.
+  `--no-analyze` leaves them alone.
+
 ## [1.2.0] - 2026-08-27
 
 ### Added

@@ -6,6 +6,7 @@ namespace hkyss\Tune\Console\Commands;
 
 use hkyss\Tune\Apply\Applier;
 use hkyss\Tune\Apply\RebuildRefused;
+use hkyss\Tune\Apply\Statistics;
 use hkyss\Tune\Console\DatabaseCommand;
 use hkyss\Tune\Record\Change;
 use hkyss\Tune\Record\Journal;
@@ -18,6 +19,7 @@ class UntuneCommand extends DatabaseCommand
         {--database= : Connection to change}
         {--dry-run : Print the statements and change nothing}
         {--allow-rebuild : Permit statements that rebuild a table and block writes}
+        {--no-analyze : Leave the optimizer reading the statistics it had before}
         {--force : Skip the confirmation}';
 
     protected $description = 'Put back what db:tune changed, newest change first';
@@ -97,6 +99,7 @@ class UntuneCommand extends DatabaseCommand
         $undone = 0;
         $stale = 0;
         $failed = 0;
+        $touched = [];
 
         foreach ($changes as $change) {
             $moved = $this->movedOn($change);
@@ -115,6 +118,7 @@ class UntuneCommand extends DatabaseCommand
 
             try {
                 $applier->run($change->undo, (bool) $this->option('allow-rebuild'));
+                array_push($touched, ...$change->undo);
                 $journal->forget($change->id);
                 $this->reader()->forget();
                 $this->line(sprintf('  <fg=green>undone</> %s', $change->ruleId));
@@ -129,6 +133,13 @@ class UntuneCommand extends DatabaseCommand
 
         $this->newLine();
         $this->line(sprintf('<options=bold>%d undone, %d stale, %d failed.</>', $undone, $stale, $failed));
+
+        if ($undone > 0 && !$this->option('no-analyze')) {
+            $this->line(sprintf(
+                'Statistics read again on %d table(s).',
+                (new Statistics($this->connection()))->refreshFor($touched)
+            ));
+        }
 
         if ($journal->count() === 0) {
             $journal->discard();

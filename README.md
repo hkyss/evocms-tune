@@ -164,7 +164,10 @@ says which kind it is. On a `site_content` of any size, run the additions first,
 `db:doctor`, and leave the drops for a quieter moment — a dropped index cannot be put back
 without rebuilding it.
 
-`ANALYZE TABLE` after a batch of changes, so the optimizer sees the new cardinalities.
+Statistics are read again on every table a run changed, in one `ANALYZE TABLE`, because an
+index the optimizer knows nothing about is one it may decline to use. It samples pages rather
+than reading the table, so it is quick even on a large one; `--no-analyze` skips it where you
+would rather choose the moment yourself.
 
 ## Requirements
 

@@ -1,0 +1,132 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: PHP ${{ matrix.php }} / ${{ matrix.dependencies }}
+    runs-on: ubuntu-latest
+
+    # Not a full cross product: lowest means Illuminate 8, which is what Evolution CE 3.1.30
+    # actually ships, and nobody runs that on PHP 8.4.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            dependencies: lowest
+          - php: '8.2'
+            dependencies: highest
+          - php: '8.3'
+            dependencies: highest
+          - php: '8.4'
+            dependencies: highest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: json, pdo_mysql, mbstring
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php }}-${{ matrix.dependencies }}-${{ hashFiles('composer.json') }}
+          restore-keys: composer-${{ matrix.php }}-${{ matrix.dependencies }}-
+
+      # The package pins config.platform.php to the lowest supported runtime; drop it so the
+      # matrix actually exercises the PHP version it claims to.
+      - name: Unpin the platform
+        run: composer config --unset platform.php
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress ${{ matrix.dependencies == 'lowest' && '--prefer-lowest' || '' }}
+
+      - name: Run tests
+        run: composer test
+
+  static-analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - run: composer install --no-interaction --no-progress
+
+      - run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - run: vendor/bin/php-cs-fixer fix --dry-run --diff
+
+  schema:
+    name: Against a real Evolution schema
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: evolution
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - run: composer install --no-interaction --no-progress
+
+      - name: Load the shipped schema
+        run: mysql -h 127.0.0.1 -uroot -proot evolution < tests/Schema/baseline.sql
+
+      # A plan that finds nothing on a stock schema means the reader stopped working, not that
+      # the schema got better.
+      - name: Plan against it
+        run: php tests/Schema/plan.php
+
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: json, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - run: composer validate --strict

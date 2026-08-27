@@ -1,0 +1,74 @@
+{
+    "name": "hkyss/evocms-tune",
+    "description": "Database tuning for Evolution CMS CE 3: diagnoses the live schema, adds the indexes the core omits, removes the ones that only cost writes",
+    "type": "evolutioncms-package",
+    "license": "MIT",
+    "keywords": [
+        "evolutioncms",
+        "evocms",
+        "mysql",
+        "index",
+        "performance",
+        "schema"
+    ],
+    "homepage": "https://github.com/hkyss/evocms-tune",
+    "authors": [
+        {
+            "name": "hkyss",
+            "email": "hkyss.work@protonmail.com",
+            "homepage": "https://github.com/hkyss"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hkyss/evocms-tune/issues",
+        "source": "https://github.com/hkyss/evocms-tune",
+        "docs": "https://github.com/hkyss/evocms-tune#readme"
+    },
+    "require": {
+        "php": "^8.2",
+        "illuminate/console": "^8.0|^9.0|^10.0|^11.0|^12.0",
+        "illuminate/database": "^8.0|^9.0|^10.0|^11.0|^12.0",
+        "illuminate/support": "^8.0|^9.0|^10.0|^11.0|^12.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^9.6|^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "hkyss\\Tune\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "hkyss\\Tune\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "hkyss\\Tune\\TuneServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2.0"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs:fix": "php-cs-fixer fix",
+        "stan": "phpstan analyse --memory-limit=1G",
+        "check": [
+            "@cs",
+            "@stan",
+            "@test"
+        ]
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

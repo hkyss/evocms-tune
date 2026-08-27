@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# Keep the dist archive to what an installation actually needs.
+/.github                export-ignore
+/.gitattributes         export-ignore
+/.editorconfig          export-ignore
+/.gitignore             export-ignore
+/tests                  export-ignore
+/phpunit.xml            export-ignore
+/CONTRIBUTING.md        export-ignore
+/.php-cs-fixer.dist.php export-ignore
+/phpstan.neon           export-ignore

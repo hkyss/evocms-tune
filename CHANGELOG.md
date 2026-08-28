@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-08-28
+
+### Changed
+
+- The Packagist keyword is `evolution-cms`, the spelling the rest of the family publishes under;
+  this package alone said `evolutioncms` and fell out of the neighbouring search results. The
+  code is unchanged from 1.3.0.
+
 ## [1.3.0] - 2026-08-27
 
 ### Changed

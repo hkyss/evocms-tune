@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-09-01
+
+### Changed
+
+- The code is unchanged from 1.3.1. Packagist names, for every version of this package, a commit
+  the repository no longer holds: the tags were moved and the metadata kept the commits they used
+  to point at. GitHub still serves such a commit by its sha, so an install goes through today and
+  fails on the day GitHub collects it. A new tag is a version Packagist reads fresh, so `^1.3`
+  resolves to a commit the repository has.
+
 ## [1.3.1] - 2026-08-28
 
 ### Changed

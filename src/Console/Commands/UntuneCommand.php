@@ -104,10 +104,8 @@ class UntuneCommand extends DatabaseCommand
         foreach ($changes as $change) {
             $moved = $this->movedOn($change);
 
-            // The schema has moved on since db:tune touched it: another migration, or a
-            // hand at a console, renamed or dropped what this record names. It cannot be
-            // replayed and will never become replayable, so it goes rather than failing
-            // this run and every run after it.
+            // A record whose target has been renamed or dropped since db:tune touched it can never be
+            // replayed, so it goes rather than failing this run and every run after it.
             if ($moved !== null) {
                 $journal->forget($change->id);
                 $this->line(sprintf('  <fg=gray>stale</>  %s — %s, record dropped', $change->ruleId, $moved));

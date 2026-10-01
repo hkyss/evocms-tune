@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-01
+
+### Added
+
+- A template that names no controller no longer writes `<namespace>BaseController not exists!`
+  into `event_log` where `ControllerNamespace` holds no `BaseController`. Evolution looked for one
+  on every view of such a page — 270 entries in nine days on one shop, all for the two templates
+  of its reviews — and drew the page the same whether it found one or not. The package wraps the
+  template processor and runs it without the namespace for that page alone. A template that names
+  its controller, a namespace with a `BaseController`, and a document with no template, whose
+  `Blank` controller is looked up in the namespace, go through as before.
+
 ## [1.3.3] - 2026-10-01
 
 ### Fixed

@@ -10,3 +10,4 @@
 /CONTRIBUTING.md        export-ignore
 /.php-cs-fixer.dist.php export-ignore
 /phpstan.neon           export-ignore
+/stubs                  export-ignore

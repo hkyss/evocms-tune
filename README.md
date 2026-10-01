@@ -143,6 +143,19 @@ php artisan db:prune --days=30 --table=manager_log
 Retention lives in the config, ninety days for the event log and a hundred and eighty for the
 manager log.
 
+## A template without a controller
+
+Evolution draws a template that names no controller through the view its alias names, and on
+the way it looks for a `BaseController` in the namespace `ControllerNamespace` gives. A site that
+keeps none there gets `<namespace>BaseController not exists!` in `event_log` on every view of such
+a page, and the page is drawn the same whether the lookup succeeds or not.
+
+The package wraps Evolution's template processor. Where the document's template names no
+controller and the namespace holds no `BaseController`, the processor runs without the namespace
+for that one call, so Evolution's own code draws the page and skips the lookup. A template that
+names its controller, a namespace that has a `BaseController`, and a document with no template —
+whose `Blank` controller is looked up in the namespace — go through as they did.
+
 ## Config
 
 ```bash

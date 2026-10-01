@@ -58,6 +58,29 @@ class RulesetTest extends TestCase
         }
     }
 
+    public function testEveryRuleIsAboutATableEvolutionShips(): void
+    {
+        foreach (Ruleset::evolutionCore() as $rule) {
+            $this->assertContains($rule->table, Ruleset::EVOLUTION_TABLES, $rule->id);
+        }
+    }
+
+    public function testEvolutionsTablesAreTheOnesItsSchemaHas(): void
+    {
+        preg_match_all(
+            '/^CREATE TABLE `evo_(\w+)`/m',
+            (string) file_get_contents(__DIR__ . '/../Schema/baseline.sql'),
+            $found
+        );
+
+        $dumped = $found[1];
+        $listed = Ruleset::EVOLUTION_TABLES;
+        sort($dumped);
+        sort($listed);
+
+        $this->assertSame($dumped, $listed);
+    }
+
     public function testATierIncludesEveryTierBelowIt(): void
     {
         $this->assertTrue(Tier::Aggressive->includes(Tier::Core));

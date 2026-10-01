@@ -43,6 +43,21 @@ class PlannerTest extends TestCase
         $this->assertNotContains('PRIMARY', $dropped);
     }
 
+    public function testAnotherPackagesTableIsNotPrunedAtAnyTier(): void
+    {
+        $schema = $this->stockSchema();
+        $schema['offer_tvs'] = [
+            new Index('PRIMARY', ['id'], true),
+            new Index('offer_tvs_offer_idx', ['offer_id'], false),
+            new Index('offer_tvs_offer_tv_idx', ['offer_id', 'tv_id'], true),
+        ];
+
+        $plan = $this->planFor($schema, [], Tier::Aggressive);
+
+        $this->assertSame([], $this->pendingDrops($plan, 'offer_tvs'));
+        $this->assertContains('aliasidx', $this->pendingDrops($plan, 'site_content'));
+    }
+
     public function testAnIndexAlreadyCoveredByAWiderOneIsSatisfiedAndCarriesNoStatement(): void
     {
         $schema = $this->stockSchema();

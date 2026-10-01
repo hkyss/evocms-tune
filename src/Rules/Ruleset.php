@@ -6,6 +6,46 @@ namespace hkyss\Tune\Rules;
 
 final class Ruleset
 {
+    public const EVOLUTION_TABLES = [
+        'active_user_locks',
+        'active_user_sessions',
+        'active_users',
+        'categories',
+        'document_groups',
+        'documentgroup_names',
+        'event_log',
+        'manager_log',
+        'member_groups',
+        'membergroup_access',
+        'membergroup_names',
+        'migrations',
+        'permissions',
+        'permissions_groups',
+        'role_permissions',
+        'site_content',
+        'site_content_closure',
+        'site_htmlsnippets',
+        'site_module_access',
+        'site_module_depobj',
+        'site_modules',
+        'site_plugin_events',
+        'site_plugins',
+        'site_snippets',
+        'site_templates',
+        'site_tmplvar_access',
+        'site_tmplvar_contentvalues',
+        'site_tmplvar_templates',
+        'site_tmplvars',
+        'system_eventnames',
+        'system_settings',
+        'user_attributes',
+        'user_role_vars',
+        'user_roles',
+        'user_settings',
+        'user_values',
+        'users',
+    ];
+
     /** @return list<Rule> */
     public static function evolutionCore(): array
     {

@@ -31,7 +31,8 @@ class Planner
         $curated = $this->select(Ruleset::evolutionCore(), $upTo, $only);
         $findings = array_map(fn (Rule $rule): Finding => $this->evaluate($rule, $builder), $curated);
 
-        $projected = $this->project($findings);
+        // Another package's rollback drops its indexes by name, so redundancy is sought on Evolution's tables only.
+        $projected = array_intersect_key($this->project($findings), array_flip(Ruleset::EVOLUTION_TABLES));
         $derived = $this->select($this->analyzer->rulesFor($projected), $upTo, $only);
 
         foreach ($derived as $rule) {

@@ -127,6 +127,10 @@ cannot. That analysis runs against the schema *as it will be after* the addition
 they should have been are in place. A unique is never treated as redundant against a wider
 non-unique index.
 
+**Touch another package's tables.** The curated rules and the derived ones alike stay on the
+tables Evolution ships. A table a package migrates is that package's to index, and its rollback
+drops what it made by name — an index already gone stops that rollback halfway.
+
 ## Pruning
 
 Evolution writes to `event_log` and `manager_log` and never removes from them.

@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-10-01
+
+### Fixed
+
+- `db:tune` keeps to the tables Evolution ships. Its search for redundant indexes walked every
+  table under the prefix, so on a site where other packages had installed theirs it dropped
+  indexes their migrations made — thirteen across six tables on one shop — and a package's
+  rollback drops what it made by name: taking that package back out stopped halfway on an index
+  already gone. A site that took such drops keeps them in the journal, and
+  `db:untune --only=<table>` puts them back.
+
 ## [1.3.2] - 2026-09-01
 
 ### Changed

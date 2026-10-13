@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-13
+
+### Changed
+
+- The closure table gets one index in the `core` tier that covers a read by ancestor and depth
+  with the descendant in it: `(ancestor, depth, descendant)`, `tune_closure_ancestor_depth_descendant`.
+  It replaces `closure.ancestor_depth`, which indexed `(ancestor, depth)` in `extended` and left the
+  descendant to a lookup in the table. An index of the same columns a package added under its own
+  name counts as present, so nothing is added twice. A site that took the old index keeps it in the
+  journal, and the next `db:tune` drops it as covered by the new one.
+
 ## [1.4.0] - 2026-10-01
 
 ### Added

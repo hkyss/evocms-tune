@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-10-13
+
+### Added
+
+- `site_content.children_template`, in the core tier: `(parent, template, deleted, published,
+  menuindex)`, which a listing of a folder's children by template walks in the manager's order. On
+  half a million products the menu of a section holding 127 000 of them took 238 ms without it and
+  under a millisecond with it. `qmedia-by/support` added the same index from a migration of its own,
+  under the name this rule takes, so a site that has it is left as it is.
+
 ## [1.5.0] - 2026-10-13
 
 ### Changed

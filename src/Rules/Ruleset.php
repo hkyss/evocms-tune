@@ -82,13 +82,14 @@ final class Ruleset
                 . 'table by descendant, which no shipped index leads with.'
             ),
             Rule::addIndex(
-                'closure.ancestor_depth',
+                'closure.ancestor_depth_descendant',
                 'site_content_closure',
-                'tune_closure_ancestor_depth',
-                ['ancestor', 'depth'],
-                Tier::Extended,
-                'Only pays off where subtrees are read one level at a time; the unique pair already '
-                . 'covers the unfiltered descent.'
+                'tune_closure_ancestor_depth_descendant',
+                ['ancestor', 'depth', 'descendant'],
+                Tier::Core,
+                'Listing the children of a branch to a given depth reads the closure by ancestor and '
+                . 'depth and takes the descendant from the index alone, which the unique pair cannot '
+                . 'do once depth is in the condition.'
             ),
         ];
     }

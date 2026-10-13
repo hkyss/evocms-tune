@@ -23,6 +23,25 @@ class PlannerTest extends TestCase
         $this->assertSame(Status::Pending, $this->find($plan, 'closure.descendant_depth')->status);
     }
 
+    public function testTheCoreTierIndexesTheClosureByAncestorAndDepthWithTheDescendantInIt(): void
+    {
+        $finding = $this->find($this->planFor($this->stockSchema()), 'closure.ancestor_depth_descendant');
+
+        $this->assertSame(Status::Pending, $finding->status);
+        $this->assertStringContainsString('(`ancestor`, `depth`, `descendant`)', $finding->statements[0]->sql);
+    }
+
+    public function testAnIndexPackageAboveAddedForTheClosureIsNotAddedTwice(): void
+    {
+        $schema = $this->stockSchema();
+        $schema['site_content_closure'][] = new Index('closure_ancestor', ['ancestor', 'depth', 'descendant'], false);
+
+        $finding = $this->find($this->planFor($schema), 'closure.ancestor_depth_descendant');
+
+        $this->assertSame(Status::Satisfied, $finding->status);
+        $this->assertSame('covered by closure_ancestor', $finding->detail);
+    }
+
     public function testAddingTheAliasIndexMakesTheShippedOneRedundant(): void
     {
         $plan = $this->planFor($this->stockSchema());

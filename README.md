@@ -16,7 +16,7 @@ php artisan db:tune
 php artisan db:untune
 ```
 
-On a stock CE 3.1 install it finds thirty changes: nineteen that pay off on any site, nine that
+On a stock CE 3.1 install it finds thirty changes: twenty that pay off on any site, eight that
 depend on how the site is used, and two that only make sense once you know nothing searches.
 
 ## Why

@@ -309,6 +309,16 @@ final class Ruleset
                 . 'row-by-row filter and a filesort.'
             ),
             Rule::addIndex(
+                'site_content.children_template',
+                'site_content',
+                'content_children_template',
+                ['parent', 'template', 'deleted', 'published', 'menuindex'],
+                Tier::Core,
+                'A listing of the children of a folder by template, which is how a catalogue reads its '
+                . 'products, walks this index in the order the manager keeps them in. Without it every '
+                . 'child of the folder is read and sorted before the first few are taken.'
+            ),
+            Rule::addIndex(
                 'site_content.alias_parent',
                 'site_content',
                 'tune_content_alias_parent',

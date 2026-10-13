@@ -31,6 +31,31 @@ class PlannerTest extends TestCase
         $this->assertStringContainsString('(`ancestor`, `depth`, `descendant`)', $finding->statements[0]->sql);
     }
 
+    public function testTheCoreTierIndexesTheChildrenOfAParentByTemplateAsWell(): void
+    {
+        $finding = $this->find($this->planFor($this->stockSchema()), 'site_content.children_template');
+
+        $this->assertSame(Status::Pending, $finding->status);
+        $this->assertStringContainsString(
+            'ADD INDEX `content_children_template` (`parent`, `template`, `deleted`, `published`, `menuindex`)',
+            $finding->statements[0]->sql
+        );
+    }
+
+    public function testAListingIndexAPackageAboveAddedIsNotAddedTwice(): void
+    {
+        $schema = $this->stockSchema();
+        $schema['site_content'][] = new Index(
+            'content_children_template',
+            ['parent', 'template', 'deleted', 'published', 'menuindex'],
+            false
+        );
+
+        $finding = $this->find($this->planFor($schema), 'site_content.children_template');
+
+        $this->assertSame(Status::Satisfied, $finding->status);
+    }
+
     public function testAnIndexPackageAboveAddedForTheClosureIsNotAddedTwice(): void
     {
         $schema = $this->stockSchema();

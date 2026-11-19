@@ -87,6 +87,19 @@ class PlannerTest extends TestCase
         $this->assertNotContains('PRIMARY', $dropped);
     }
 
+    public function testTheDropsTheAdditionsAllowAreKeptApartFromTheCuratedChanges(): void
+    {
+        $plan = $this->planFor($this->stockSchema());
+
+        $derived = array_map(static fn (Finding $f): string => $f->rule->id, $plan->pendingDerived());
+        $curated = array_map(static fn (Finding $f): string => $f->rule->id, $plan->pendingCurated());
+
+        $this->assertContains('redundant.site_content.aliasidx', $derived);
+        $this->assertNotContains('redundant.site_content.aliasidx', $curated);
+        $this->assertContains('site_content.alias_parent', $curated);
+        $this->assertSame(count($plan->pending()), count($derived) + count($curated));
+    }
+
     public function testAnotherPackagesTableIsNotPrunedAtAnyTier(): void
     {
         $schema = $this->stockSchema();

@@ -122,10 +122,12 @@ changed by rewriting the table.
 
 **Guess at redundancy.** Beyond the curated rules the package derives its own: any index whose
 columns are the leading part of another index on the same table answers no query the wider one
-cannot. That analysis runs against the schema *as it will be after* the additions, which is how
-`aliasidx` and `parent` on `site_content` turn out to be redundant once the composite indexes
-they should have been are in place. A unique is never treated as redundant against a wider
-non-unique index.
+cannot. `db:doctor` and `--dry-run` run that analysis against the schema *as it will be after*
+the additions, which is how `aliasidx` and `parent` on `site_content` turn out to be redundant
+once the composite indexes they should have been are in place. `db:tune` applies the additions
+first and then runs the analysis again on the schema it finds: a drop whose wider index failed to
+build is skipped and named, and the command exits non-zero. A unique is never treated as
+redundant against a wider non-unique index.
 
 **Touch another package's tables.** The curated rules and the derived ones alike stay on the
 tables Evolution ships. A table a package migrates is that package's to index, and its rollback

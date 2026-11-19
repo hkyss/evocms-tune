@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace hkyss\Tune\Console\Commands;
 
 use hkyss\Tune\Analysis\Finding;
+use hkyss\Tune\Analysis\Plan;
 use hkyss\Tune\Apply\Applier;
 use hkyss\Tune\Apply\RebuildRefused;
 use hkyss\Tune\Apply\Statement;
 use hkyss\Tune\Apply\Statistics;
 use hkyss\Tune\Console\DatabaseCommand;
+use hkyss\Tune\Console\Outcome;
 use hkyss\Tune\Record\Journal;
 use Throwable;
 
@@ -69,43 +71,80 @@ class TuneCommand extends DatabaseCommand
             return self::SUCCESS;
         }
 
-        return $this->applyAll($plan->pending());
+        return $this->applyAll($plan);
     }
 
-    /** @param list<Finding> $pending */
-    private function applyAll(array $pending): int
+    private function applyAll(Plan $plan): int
     {
         $applier = new Applier($this->connection());
         $journal = new Journal($this->connection(), $this->reader());
-        $applied = 0;
-        $failed = 0;
-        $touched = [];
+        $outcome = new Outcome();
 
-        foreach ($pending as $finding) {
-            try {
-                $journal->record($finding->rule, $applier->apply($finding, (bool) $this->option('allow-rebuild')), $finding->undo);
-                array_push($touched, ...$finding->statements);
-                $this->line(sprintf('  <fg=green>done</> %s.%s', $finding->rule->table, $finding->rule->describe()));
-                $applied++;
-            } catch (RebuildRefused) {
-                $this->line(sprintf('  <fg=yellow>held</> %s.%s — needs --allow-rebuild', $finding->rule->table, $finding->rule->describe()));
-            } catch (Throwable $e) {
-                $this->line(sprintf('  <fg=red>fail</> %s.%s — %s', $finding->rule->table, $finding->rule->describe(), $e->getMessage()));
-                $failed++;
+        foreach ($plan->pendingCurated() as $finding) {
+            $this->applyOne($finding, $applier, $journal, $outcome);
+        }
+
+        $derived = $plan->pendingDerived();
+
+        if ($derived !== []) {
+            $this->reader()->forget();
+            $live = $this->byRule($this->planner()->rederive($plan, $this->tier(), $this->only()));
+
+            foreach ($derived as $finding) {
+                $current = $live[$finding->rule->id] ?? null;
+
+                if ($current === null || !$current->status->isActionable()) {
+                    $this->line(sprintf('  <fg=yellow>skip</> %s.%s — the index that made it redundant is not in place', $finding->rule->table, $finding->rule->describe()));
+                    $outcome->skipped++;
+
+                    continue;
+                }
+
+                $this->applyOne($current, $applier, $journal, $outcome);
             }
         }
 
         $this->newLine();
-        $this->line(sprintf('<options=bold>%d applied, %d failed.</>', $applied, $failed));
+        $this->line(sprintf('<options=bold>%d applied, %d failed, %d skipped.</>', $outcome->applied, $outcome->failed, $outcome->skipped));
 
-        if ($applied > 0) {
+        if ($outcome->applied > 0) {
             $this->reader()->forget();
-            $this->refresh($touched);
+            $this->refresh($outcome->touched);
             $this->line('Run <comment>php artisan db:doctor</comment> to confirm.');
             $this->line(sprintf('Recorded in %s; <comment>php artisan db:untune</comment> puts it back.', $journal->table()));
         }
 
-        return $failed > 0 ? self::FAILURE : self::SUCCESS;
+        return $outcome->failed > 0 || $outcome->skipped > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    private function applyOne(Finding $finding, Applier $applier, Journal $journal, Outcome $outcome): void
+    {
+        try {
+            $journal->record($finding->rule, $applier->apply($finding, (bool) $this->option('allow-rebuild')), $finding->undo);
+            array_push($outcome->touched, ...$finding->statements);
+            $this->line(sprintf('  <fg=green>done</> %s.%s', $finding->rule->table, $finding->rule->describe()));
+            $outcome->applied++;
+        } catch (RebuildRefused) {
+            $this->line(sprintf('  <fg=yellow>held</> %s.%s — needs --allow-rebuild', $finding->rule->table, $finding->rule->describe()));
+        } catch (Throwable $e) {
+            $this->line(sprintf('  <fg=red>fail</> %s.%s — %s', $finding->rule->table, $finding->rule->describe(), $e->getMessage()));
+            $outcome->failed++;
+        }
+    }
+
+    /**
+     * @param  list<Finding>         $findings
+     * @return array<string, Finding>
+     */
+    private function byRule(array $findings): array
+    {
+        $indexed = [];
+
+        foreach ($findings as $finding) {
+            $indexed[$finding->rule->id] = $finding;
+        }
+
+        return $indexed;
     }
 
     // An index the optimizer has no statistics for is one it may decline to use, so the change

@@ -8,15 +8,36 @@ use hkyss\Tune\Rules\Tier;
 
 final class Plan
 {
-    /** @param list<Finding> $findings */
-    public function __construct(public readonly array $findings)
-    {
+    /** @var list<Finding> */
+    public readonly array $findings;
+
+    /**
+     * @param list<Finding> $curated
+     * @param list<Finding> $derived
+     */
+    public function __construct(
+        public readonly array $curated,
+        public readonly array $derived = [],
+    ) {
+        $this->findings = [...$curated, ...$derived];
     }
 
     /** @return list<Finding> */
     public function pending(): array
     {
-        return array_values(array_filter($this->findings, static fn (Finding $f): bool => $f->status->isActionable()));
+        return self::actionable($this->findings);
+    }
+
+    /** @return list<Finding> */
+    public function pendingCurated(): array
+    {
+        return self::actionable($this->curated);
+    }
+
+    /** @return list<Finding> */
+    public function pendingDerived(): array
+    {
+        return self::actionable($this->derived);
     }
 
     /** @return list<Finding> */
@@ -56,5 +77,14 @@ final class Plan
     public function isClean(): bool
     {
         return $this->pending() === [];
+    }
+
+    /**
+     * @param  list<Finding> $findings
+     * @return list<Finding>
+     */
+    private static function actionable(array $findings): array
+    {
+        return array_values(array_filter($findings, static fn (Finding $f): bool => $f->status->isActionable()));
     }
 }

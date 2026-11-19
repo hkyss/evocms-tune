@@ -14,36 +14,62 @@ use hkyss\Tune\Schema\SchemaReader;
 
 class Planner
 {
+    /** @param list<Rule>|null $rules */
     public function __construct(
         private readonly SchemaReader $reader,
         private readonly RedundancyAnalyzer $analyzer = new RedundancyAnalyzer(),
+        private readonly ?array $rules = null,
     ) {
     }
 
     /** @param list<string> $only */
     public function plan(Tier $upTo = Tier::Core, array $only = []): Plan
     {
-        $builder = new StatementBuilder(
+        $builder = $this->builder();
+        $curated = array_map(
+            fn (Rule $rule): Finding => $this->evaluate($rule, $builder),
+            $this->select($this->rules ?? Ruleset::evolutionCore(), $upTo, $only)
+        );
+
+        return new Plan($curated, $this->derive($this->project($curated), $curated, $upTo, $only, $builder));
+    }
+
+    /**
+     * @param  list<string>  $only
+     * @return list<Finding>
+     */
+    public function rederive(Plan $plan, Tier $upTo = Tier::Core, array $only = []): array
+    {
+        return $this->derive($this->reader->all(), $plan->curated, $upTo, $only, $this->builder());
+    }
+
+    /**
+     * @param  array<string, list<Index>> $schema
+     * @param  list<Finding>              $curated
+     * @param  list<string>               $only
+     * @return list<Finding>
+     */
+    private function derive(array $schema, array $curated, Tier $upTo, array $only, StatementBuilder $builder): array
+    {
+        // Another package's rollback drops its indexes by name, so redundancy is sought on Evolution's tables only.
+        $evolution = array_intersect_key($schema, array_flip(Ruleset::EVOLUTION_TABLES));
+        $derived = [];
+
+        foreach ($this->select($this->analyzer->rulesFor($evolution), $upTo, $only) as $rule) {
+            if (!$this->alreadyCovered($rule, $curated)) {
+                $derived[] = $this->evaluate($rule, $builder);
+            }
+        }
+
+        return $derived;
+    }
+
+    private function builder(): StatementBuilder
+    {
+        return new StatementBuilder(
             $this->reader->prefix(),
             $this->reader->platform()->supportsOnlineIndexChanges()
         );
-
-        $curated = $this->select(Ruleset::evolutionCore(), $upTo, $only);
-        $findings = array_map(fn (Rule $rule): Finding => $this->evaluate($rule, $builder), $curated);
-
-        // Another package's rollback drops its indexes by name, so redundancy is sought on Evolution's tables only.
-        $projected = array_intersect_key($this->project($findings), array_flip(Ruleset::EVOLUTION_TABLES));
-        $derived = $this->select($this->analyzer->rulesFor($projected), $upTo, $only);
-
-        foreach ($derived as $rule) {
-            if ($this->alreadyCovered($rule, $findings)) {
-                continue;
-            }
-
-            $findings[] = $this->evaluate($rule, $builder);
-        }
-
-        return new Plan($findings);
     }
 
     private function evaluate(Rule $rule, StatementBuilder $builder): Finding

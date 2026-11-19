@@ -115,6 +115,17 @@ jobs:
       - name: Plan against it
         run: php tests/Schema/plan.php
 
+      - name: Run the tests that need MySQL
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE tune_test'
+          vendor/bin/phpunit --testsuite=Mysql
+        env:
+          EVOCMS_TEST_DB: mysql
+          EVOCMS_TEST_DB_HOST: 127.0.0.1
+          EVOCMS_TEST_DB_NAME: tune_test
+          EVOCMS_TEST_DB_USER: root
+          EVOCMS_TEST_DB_PASSWORD: root
+
   validate:
     name: Validate
     runs-on: ubuntu-latest

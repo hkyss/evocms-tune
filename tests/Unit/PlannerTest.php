@@ -67,24 +67,16 @@ class PlannerTest extends TestCase
         $this->assertSame('covered by closure_ancestor', $finding->detail);
     }
 
-    public function testAddingTheAliasIndexMakesTheShippedOneRedundant(): void
+    public function testTheShippedIndexesStayBesideTheWiderOnesThatStartWithThem(): void
     {
-        $plan = $this->planFor($this->stockSchema());
+        $dropped = $this->pendingDrops($this->planFor($this->stockSchema(), [], Tier::Extended), 'site_content');
 
-        $dropped = $this->pendingDrops($plan, 'site_content');
-
-        $this->assertContains('aliasidx', $dropped);
-        $this->assertContains('parent', $dropped);
+        $this->assertSame([], $dropped);
     }
 
-    public function testItFindsTheRedundantPublishDatesWithoutARuleForThem(): void
+    public function testItFindsAnIndexThePrimaryKeyAlreadyServesWithoutARuleForIt(): void
     {
-        $dropped = $this->pendingDrops($this->planFor($this->stockSchema()), 'site_content');
-
-        $this->assertContains('pub', $dropped);
-        $this->assertContains('pub_unpub', $dropped);
-        $this->assertNotContains('unpub', $dropped);
-        $this->assertNotContains('PRIMARY', $dropped);
+        $this->assertSame(['user_settings_user_index'], $this->pendingDrops($this->planFor($this->stockSchema()), 'user_settings'));
     }
 
     public function testTheDropsTheAdditionsAllowAreKeptApartFromTheCuratedChanges(): void
@@ -94,8 +86,8 @@ class PlannerTest extends TestCase
         $derived = array_map(static fn (Finding $f): string => $f->rule->id, $plan->pendingDerived());
         $curated = array_map(static fn (Finding $f): string => $f->rule->id, $plan->pendingCurated());
 
-        $this->assertContains('redundant.site_content.aliasidx', $derived);
-        $this->assertNotContains('redundant.site_content.aliasidx', $curated);
+        $this->assertContains('redundant.user_settings.user_settings_user_index', $derived);
+        $this->assertNotContains('redundant.user_settings.user_settings_user_index', $curated);
         $this->assertContains('site_content.alias_parent', $curated);
         $this->assertSame(count($plan->pending()), count($derived) + count($curated));
     }
@@ -106,13 +98,13 @@ class PlannerTest extends TestCase
         $schema['offer_tvs'] = [
             new Index('PRIMARY', ['id'], true),
             new Index('offer_tvs_offer_idx', ['offer_id'], false),
-            new Index('offer_tvs_offer_tv_idx', ['offer_id', 'tv_id'], true),
+            new Index('offer_tvs_offer_again', ['offer_id'], false),
         ];
 
         $plan = $this->planFor($schema, [], Tier::Aggressive);
 
         $this->assertSame([], $this->pendingDrops($plan, 'offer_tvs'));
-        $this->assertContains('aliasidx', $this->pendingDrops($plan, 'site_content'));
+        $this->assertContains('user_settings_user_index', $this->pendingDrops($plan, 'user_settings'));
     }
 
     public function testAnIndexAlreadyCoveredByAWiderOneIsSatisfiedAndCarriesNoStatement(): void
@@ -185,10 +177,10 @@ class PlannerTest extends TestCase
     {
         $plan = $this->planFor($this->stockSchema());
 
-        $finding = $this->find($plan, 'redundant.site_content.aliasidx');
+        $finding = $this->find($plan, 'redundant.user_settings.user_settings_user_index');
 
-        $this->assertStringContainsString('DROP INDEX `aliasidx`', $finding->statements[0]->sql);
-        $this->assertStringContainsString('ADD INDEX `aliasidx` (`alias`)', $finding->undo[0]->sql);
+        $this->assertStringContainsString('DROP INDEX `user_settings_user_index`', $finding->statements[0]->sql);
+        $this->assertStringContainsString('ADD INDEX `user_settings_user_index` (`user`)', $finding->undo[0]->sql);
     }
 
     public function testTheUndoOfTheUniqueConversionPutsTheOriginalIndexBack(): void
@@ -259,6 +251,10 @@ class PlannerTest extends TestCase
             ],
             'site_content_closure' => [
                 new Index('PRIMARY', ['closure_id'], true),
+            ],
+            'user_settings' => [
+                new Index('PRIMARY', ['user', 'setting_name'], true),
+                new Index('user_settings_user_index', ['user'], false),
             ],
             'site_tmplvar_contentvalues' => [
                 new Index('PRIMARY', ['id'], true),

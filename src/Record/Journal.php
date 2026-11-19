@@ -68,11 +68,11 @@ class Journal
      * @param list<string>    $applied
      * @param list<Statement> $undo
      */
-    public function record(Rule $rule, array $applied, array $undo): void
+    public function record(Rule $rule, array $applied, array $undo): int
     {
         $this->ensure();
 
-        $this->connection->table(self::TABLE)->insert([
+        return (int) $this->connection->table(self::TABLE)->insertGetId([
             'rule_id' => $rule->id,
             'table_name' => $rule->table,
             'applied_sql' => implode(";\n", $applied),

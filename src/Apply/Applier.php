@@ -25,11 +25,7 @@ class Applier
      */
     public function run(array $statements, bool $allowRebuild): array
     {
-        foreach ($statements as $statement) {
-            if (!$statement->online && !$allowRebuild) {
-                throw new RebuildRefused($statement);
-            }
-        }
+        $this->admit($statements, $allowRebuild);
 
         $executed = [];
 
@@ -39,5 +35,15 @@ class Applier
         }
 
         return $executed;
+    }
+
+    /** @param list<Statement> $statements */
+    public function admit(array $statements, bool $allowRebuild): void
+    {
+        foreach ($statements as $statement) {
+            if (!$statement->online && !$allowRebuild) {
+                throw new RebuildRefused($statement);
+            }
+        }
     }
 }

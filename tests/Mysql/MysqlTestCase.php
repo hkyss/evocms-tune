@@ -81,10 +81,19 @@ abstract class MysqlTestCase extends TestCase
         return $names;
     }
 
+    protected function hasTable(string $table): bool
+    {
+        return $this->connection->select(
+            'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            ['evo_' . $table]
+        ) !== [];
+    }
+
     private function dropTables(): void
     {
-        foreach ($this->connection->select('SHOW TABLES') as $row) {
-            $this->connection->statement(sprintf('DROP TABLE `%s`', (string) array_values((array) $row)[0]));
+        foreach ($this->connection->select('SHOW FULL TABLES') as $row) {
+            [$name, $type] = array_values((array) $row);
+            $this->connection->statement(sprintf('DROP %s `%s`', $type === 'VIEW' ? 'VIEW' : 'TABLE', (string) $name));
         }
     }
 }

@@ -80,6 +80,14 @@ class TuneCommand extends DatabaseCommand
         $journal = new Journal($this->connection(), $this->reader());
         $outcome = new Outcome();
 
+        try {
+            $journal->ensure();
+        } catch (Throwable $e) {
+            $this->error(sprintf('Cannot keep a record in %s, so nothing was changed: %s', $journal->table(), $e->getMessage()));
+
+            return self::FAILURE;
+        }
+
         foreach ($plan->pendingCurated() as $finding) {
             $this->applyOne($finding, $applier, $journal, $outcome);
         }
@@ -107,6 +115,10 @@ class TuneCommand extends DatabaseCommand
         $this->newLine();
         $this->line(sprintf('<options=bold>%d applied, %d failed, %d skipped.</>', $outcome->applied, $outcome->failed, $outcome->skipped));
 
+        if ($journal->count() === 0) {
+            $journal->discard();
+        }
+
         if ($outcome->applied > 0) {
             $this->reader()->forget();
             $this->refresh($outcome->touched);
@@ -119,16 +131,50 @@ class TuneCommand extends DatabaseCommand
 
     private function applyOne(Finding $finding, Applier $applier, Journal $journal, Outcome $outcome): void
     {
+        $subject = sprintf('%s.%s', $finding->rule->table, $finding->rule->describe());
+
         try {
-            $journal->record($finding->rule, $applier->apply($finding, (bool) $this->option('allow-rebuild')), $finding->undo);
-            array_push($outcome->touched, ...$finding->statements);
-            $this->line(sprintf('  <fg=green>done</> %s.%s', $finding->rule->table, $finding->rule->describe()));
-            $outcome->applied++;
+            $applier->admit($finding->statements, (bool) $this->option('allow-rebuild'));
         } catch (RebuildRefused) {
-            $this->line(sprintf('  <fg=yellow>held</> %s.%s — needs --allow-rebuild', $finding->rule->table, $finding->rule->describe()));
+            $this->line(sprintf('  <fg=yellow>held</> %s — needs --allow-rebuild', $subject));
+
+            return;
+        }
+
+        try {
+            $record = $journal->record(
+                $finding->rule,
+                array_map(static fn (Statement $statement): string => $statement->sql, $finding->statements),
+                $finding->undo
+            );
         } catch (Throwable $e) {
-            $this->line(sprintf('  <fg=red>fail</> %s.%s — %s', $finding->rule->table, $finding->rule->describe(), $e->getMessage()));
+            $this->line(sprintf('  <fg=red>fail</> %s — not recorded, so not applied: %s', $subject, $e->getMessage()));
             $outcome->failed++;
+
+            return;
+        }
+
+        try {
+            $applier->apply($finding, (bool) $this->option('allow-rebuild'));
+        } catch (Throwable $e) {
+            $this->line(sprintf('  <fg=red>fail</> %s — %s', $subject, $e->getMessage()));
+            $outcome->failed++;
+            $this->withdraw($journal, $record);
+
+            return;
+        }
+
+        array_push($outcome->touched, ...$finding->statements);
+        $this->line(sprintf('  <fg=green>done</> %s', $subject));
+        $outcome->applied++;
+    }
+
+    private function withdraw(Journal $journal, int $record): void
+    {
+        try {
+            $journal->forget($record);
+        } catch (Throwable $e) {
+            $this->line(sprintf('       record %d stays in %s, and db:untune will read it as stale: %s', $record, $journal->table(), $e->getMessage()));
         }
     }
 

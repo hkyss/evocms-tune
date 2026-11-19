@@ -75,8 +75,9 @@ php artisan db:doctor --only=tmplvar_contentvalues.pair
 ## Undoing
 
 `db:tune` writes down every change before it applies it, together with the statement that
-reverses it, in a `tune_changes` table it creates on first use. `db:untune` replays those newest
-first:
+reverses it, in a `tune_changes` table it creates before it changes anything. A change that
+cannot be recorded is not applied, and one whose statement fails is taken off the record again.
+`db:untune` replays the record newest first:
 
 ```bash
 php artisan db:untune --dry-run
@@ -94,7 +95,9 @@ A record only applies while the schema is still where `db:tune` left it. Each un
 carries the index it expects to find — or to still be missing — and `db:untune` checks that
 before it runs anything. Where something else has moved on since, the record is read as stale
 and dropped rather than failing this run and every run after it; a renamed index can never be
-put back by a statement that names the old one.
+put back by a statement that names the old one. The same check covers a record left behind by a
+run that stopped between writing it down and applying it: the index it would undo was never
+touched, so the record is dropped and nothing runs.
 
 When the last record is undone the table goes with it, and the package leaves nothing behind.
 

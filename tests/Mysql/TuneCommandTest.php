@@ -17,6 +17,7 @@ class TuneCommandTest extends MysqlTestCase
 
         $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
         $this->assertSame(['PRIMARY', 'wide'], $this->indexesOf('site_content'));
+        $this->assertSame(2, $this->connection->table('tune_changes')->count());
     }
 
     public function testADropThatReliesOnAFailedAdditionDoesNotRun(): void
@@ -29,6 +30,19 @@ class TuneCommandTest extends MysqlTestCase
         $this->assertStringContainsString('fail', $tester->getDisplay());
         $this->assertStringContainsString('skip site_content.drop index parent', $tester->getDisplay());
         $this->assertSame(['PRIMARY', 'parent', 'wide'], $this->indexesOf('site_content'));
+        $this->assertFalse($this->hasTable('tune_changes'));
+    }
+
+    public function testAChangeThatCannotBeRecordedIsNotApplied(): void
+    {
+        $this->createContent('KEY `parent` (`parent`)');
+        $this->connection->statement('CREATE VIEW `evo_tune_changes` AS SELECT 1 AS `id`');
+
+        $tester = $this->artisan($this->tuneAddingWide(), ['--force' => true, '--no-analyze' => true]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('not recorded, so not applied', $tester->getDisplay());
+        $this->assertSame(['PRIMARY', 'parent'], $this->indexesOf('site_content'));
     }
 
     public function testADryRunStillShowsTheDropTheAdditionWillAllow(): void

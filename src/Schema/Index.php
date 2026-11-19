@@ -15,7 +15,13 @@ final class Index
         public readonly array $columns,
         public readonly bool $unique,
         public readonly string $type = self::BTREE,
+        public readonly bool $ascendingColumns = true,
     ) {
+    }
+
+    public function isComparableByColumns(): bool
+    {
+        return $this->type === self::BTREE && $this->ascendingColumns;
     }
 
     public function isPrimary(): bool

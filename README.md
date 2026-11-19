@@ -16,8 +16,8 @@ php artisan db:tune
 php artisan db:untune
 ```
 
-On a stock CE 3.1 install it finds thirty changes: twenty-one that pay off on any site, eight that
-depend on how the site is used, and two that only make sense once you know nothing searches.
+On a stock CE 3.1 install it finds thirty-six changes: fifteen that pay off on any site, nineteen
+that depend on how the site is used, and two that only make sense once you know nothing searches.
 
 ## Why
 
@@ -123,11 +123,14 @@ to the statements that would be applied.
 `db:doctor` lists those under *Not ours to change* and stops there, because a column type is
 changed by rewriting the table.
 
-**Guess at redundancy.** Beyond the curated rules the package derives its own: any index whose
-columns are the leading part of another index on the same table answers no query the wider one
-cannot. `db:doctor` and `--dry-run` run that analysis against the schema *as it will be after*
-the additions, which is how `aliasidx` and `parent` on `site_content` turn out to be redundant
-once the composite indexes they should have been are in place. `db:tune` applies the additions
+**Guess at redundancy.** Beyond the curated rules the package derives its own. InnoDB keeps the
+primary key after the columns of every secondary index, so `(parent)` is really `(parent, id)`:
+it reads a parent's rows in id order, and `(parent, menuindex)` does not. An index is redundant
+only when its columns, with the primary key after them, are the leading part of another index
+read the same way, as `(user)` is of the primary key `(user, setting_name)` on `user_settings`.
+Fulltext indexes and indexes with a descending or functional key part are never called redundant
+and never make another one redundant. `db:doctor` and `--dry-run` run that analysis against the
+schema *as it will be after* the additions. `db:tune` applies the additions
 first and then runs the analysis again on the schema it finds: a drop whose wider index failed to
 build is skipped and named, and the command exits non-zero. A unique is never treated as
 redundant against a wider non-unique index.

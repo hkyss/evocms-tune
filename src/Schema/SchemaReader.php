@@ -78,7 +78,7 @@ class SchemaReader
         $wanted = new Index('', $columns, false);
 
         foreach ($this->indexesOf($table) as $index) {
-            if ($index->type === Index::BTREE && $wanted->isPrefixOf($index)) {
+            if ($index->isComparableByColumns() && $wanted->isPrefixOf($index)) {
                 return $index;
             }
         }
@@ -179,7 +179,8 @@ class SchemaReader
         $prefix = $this->prefix();
         $rows = $this->connection->select(
             'SELECT TABLE_NAME AS table_name, INDEX_NAME AS index_name, COLUMN_NAME AS column_name,'
-            . ' SEQ_IN_INDEX AS seq, SUB_PART AS sub_part, NON_UNIQUE AS non_unique, INDEX_TYPE AS index_type'
+            . ' SEQ_IN_INDEX AS seq, SUB_PART AS sub_part, NON_UNIQUE AS non_unique, INDEX_TYPE AS index_type,'
+            . ' COLLATION AS key_order'
             . ' FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()'
             . ' ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX'
         );
@@ -197,10 +198,12 @@ class SchemaReader
             $name = (string) $row->index_name;
             $column = (string) $row->column_name;
             $part = $row->sub_part === null ? null : (int) $row->sub_part;
+            $ascending = $row->column_name !== null && $row->key_order !== 'D';
 
             $grouped[$key][$name]['columns'][] = $part === null ? $column : $column . '(' . $part . ')';
             $grouped[$key][$name]['unique'] = ((int) $row->non_unique) === 0;
             $grouped[$key][$name]['type'] = (string) $row->index_type;
+            $grouped[$key][$name]['ascending'] = ($grouped[$key][$name]['ascending'] ?? true) && $ascending;
         }
 
         $this->indexes = [];
@@ -211,7 +214,8 @@ class SchemaReader
                     (string) $name,
                     $definition['columns'],
                     (bool) $definition['unique'],
-                    (string) $definition['type']
+                    (string) $definition['type'],
+                    (bool) $definition['ascending']
                 );
             }
         }

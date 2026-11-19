@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-11-19
+
+### Changed
+
+- `db:tune` applies the curated changes first, reads the schema again and only then works out
+  which indexes are redundant. Before, a drop that counted on a new index ran even when that
+  index failed to build, and the table could be left with neither. Such a drop is now printed as
+  `skip`, and the command exits 1. `db:doctor` and `--dry-run` still show the drops against the
+  schema as it will be after the additions.
+- An index is redundant only when its columns, with the primary key InnoDB keeps after them, lead
+  another index with the primary key after it. `(parent)` reads a parent's rows in id order and
+  `(parent, deleted, published, menuindex)` does not, so the first is no longer dropped for the
+  second. On a stock schema the derived drops go from eight to one, `user_settings_user_index`.
+  `aliasidx`, `parent`, `pub` and `pub_unpub` on `site_content` stay, and so does
+  `closure.ancestor_depth` on a site that took it before 1.5.0. Fulltext indexes and indexes with a
+  descending or functional key part are never called redundant and never make another redundant.
+
+### Fixed
+
+- `db:tune` creates `tune_changes` before it changes anything and records each change before it
+  runs it. A change that cannot be recorded is not applied, and one whose statement fails is
+  taken off the record again. A record left by a run that stopped in between is read as stale by
+  `db:untune`, which drops it and runs nothing. A run that applied nothing leaves no empty table.
+
 ## [1.6.0] - 2026-10-13
 
 ### Added
